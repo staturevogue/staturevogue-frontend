@@ -8,6 +8,7 @@ import ProductDetail from './pages/ProductDetail';
 import Cart from './pages/Cart';
 import ProductListing from './pages/ProductListing';
 import Login from './pages/Login'; // New Page
+import User from './pages/User'; // 👈 Import the User Page
 import ScrollToTop from './components/ScrollToTop'; // New Component
 
 function App() {
@@ -23,9 +24,11 @@ function App() {
           <Route path="/products" element={<ProductListing />} />
           <Route path="/cart" element={<Cart />} />
           <Route path="/login" element={<Login />} /> {/* 👈 New Login Route */}
+          <Route path="/user" element={<User />} />
           {/* Helper routes for gender links */}
           <Route path="/men" element={<ProductListing />} />
           <Route path="/women" element={<ProductListing />} />
+
         </Routes>
 
         <Footer />

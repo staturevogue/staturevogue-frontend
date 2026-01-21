@@ -52,7 +52,7 @@ export default function Header() {
           <Link to="/" className="flex-shrink-0 flex items-center gap-1.5 group h-10 sm:h-12">
             <img src="/logo.jpeg" alt="Logo" className="h-8 w-8 sm:h-10 sm:w-10 object-contain py-0.5" />
             <span className="text-lg sm:text-xl font-bold text-[#1F2B5B] tracking-tight leading-none">
-              STATUREVOGUE
+              STATURE VOGUE
             </span>
           </Link>
 
