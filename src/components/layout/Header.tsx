@@ -1,156 +1,264 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ShoppingBag, Search, Menu, X, User } from "lucide-react";
+import { Search, ShoppingBag, Menu, X, User, ChevronDown, ChevronRight } from "lucide-react";
 import { useCart } from "../../context/CartContext";
+import { storeService } from "../../services/api";
 
 export default function Header() {
+  // 🔥 FIX 1: Use getCartCount function, then call it to get the number
+  const { getCartCount } = useCart();
+  const cartCount = getCartCount(); 
+
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [showSearch, setShowSearch] = useState(false);
-  const { cartItems } = useCart();
   const navigate = useNavigate();
 
-  // 🔥 MAIN NAV ITEMS - FIXED (no subItems)
-  const mainMenuItems = [
-    { name: "Men", link: "/products?gender=Men" },
-    { name: "Women", link: "/products?gender=Women" },
-  ];
+  // --- 1. DATA STATE ---
+  const [menCategories, setMenCategories] = useState<any[]>([]);
+  const [womenCategories, setWomenCategories] = useState<any[]>([]);
+  const [collections, setCollections] = useState<any[]>([]);
+  
+  // Mobile Accordion State
+  const [expandedMenu, setExpandedMenu] = useState<string | null>(null);
 
-  const mostPopularLinks = [
-    { name: "Premium Polos", link: "/products?category=Polos" },
-    { name: "Street Oversize", link: "/products?category=Oversize%20T-shirts" },
-    { name: "Semi Formal", link: "/products?category=Semi%20Formal%20Pants" },
-    { name: "Dry Fit Active", link: "/products?category=Dry%20Fit" }
-  ];
+  // --- 2. FETCH DATA ---
+  useEffect(() => {
+    const fetchMenuData = async () => {
+      try {
+        const [catsData, colsData] = await Promise.all([
+          storeService.getCategories(),
+          storeService.getCollections()
+        ]);
+
+        const allCats = catsData.results || catsData;
+        const allCols = colsData.results || colsData;
+
+        // 🔥 DEBUG: Check console to see if gender is actually 'Men' or 'Women' in your DB
+        console.log("All Categories:", allCats); 
+
+        // Filter Categories
+        setMenCategories(allCats.filter((c: any) => c.gender === 'Men' || c.gender === 'All'));
+        setWomenCategories(allCats.filter((c: any) => c.gender === 'Women' || c.gender === 'All'));
+        
+        setCollections(allCols);
+      } catch (error) {
+        console.error("Failed to load menu data", error);
+      }
+    };
+    fetchMenuData();
+  }, []);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     if (searchQuery.trim()) {
       navigate(`/products?search=${encodeURIComponent(searchQuery)}`);
-      setSearchQuery("");
-      setShowSearch(false);
+      setIsSearchOpen(false);
     }
   };
 
+  const toggleMobileSubmenu = (menu: string) => {
+    setExpandedMenu(expandedMenu === menu ? null : menu);
+  };
+
   return (
-    <header className="bg-white sticky top-0 z-50 shadow-sm">
-      <div className="bg-[#1F2B5B] text-white text-xs sm:text-sm text-center py-1.5 tracking-wide font-medium">
-        FREE SHIPPING ON ORDERS ABOVE ₹999 | EASY RETURNS
+    <header className="fixed top-0 left-0 right-0 bg-white z-50 border-b border-gray-100">
+      
+      {/* Promotion Bar */}
+      <div className="bg-[#1F2B5B] text-white text-[10px] sm:text-xs py-2 text-center tracking-widest font-medium px-4">
+        FREE SHIPPING ON ORDERS OVER ₹999 | EASY RETURNS
       </div>
 
-      <nav className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 relative">
-        <div className="flex items-center justify-between h-16 sm:h-18">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="flex items-center justify-between h-16 md:h-20">
+          
           {/* Mobile Menu Button */}
-          <button 
-            onClick={() => setIsMenuOpen(!isMenuOpen)} 
-            className="md:hidden p-2 text-gray-700 hover:text-[#1F2B5B] rounded-lg hover:bg-gray-100 transition-all"
-          >
-            {isMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+          <button onClick={() => setIsMenuOpen(true)} className="p-2 -ml-2 md:hidden text-gray-700 hover:text-[#1F2B5B]">
+            <Menu className="w-6 h-6" />
           </button>
 
-          {/* 🔥 SMALLER Logo + Title */}
-          <Link to="/" className="flex-shrink-0 flex items-center gap-1.5 group h-10 sm:h-12">
-            <img src="/logo.jpeg" alt="Logo" className="h-8 w-8 sm:h-10 sm:w-10 object-contain py-0.5" />
-            <span className="text-lg sm:text-xl font-bold text-[#1F2B5B] tracking-tight leading-none">
-              STATURE VOGUE
-            </span>
+          {/* Logo */}
+          <Link to="/" className="text-xl sm:text-2xl font-bold tracking-tighter text-[#1F2B5B] uppercase">
+            STATURE VOGUE
           </Link>
 
-          {/* DESKTOP MENU */}
-          <div className="hidden md:flex space-x-6 lg:space-x-8 h-full items-center">
-            {mainMenuItems.map((item) => (
-              <Link 
-                key={item.name}
-                to={item.link} 
-                className="text-gray-700 font-medium hover:text-[#1F2B5B] text-xs sm:text-sm uppercase tracking-wide py-1 transition-all"
-              >
-                {item.name}
-              </Link>
-            ))}
-            <Link to="/products?collection=bestsellers" className="text-gray-700 font-medium hover:text-[#1F2B5B] text-xs sm:text-sm uppercase tracking-wide">Best Sellers</Link>
-            <Link to="/products?collection=new" className="text-gray-700 font-medium hover:text-[#1F2B5B] text-xs sm:text-sm uppercase tracking-wide">New Arrivals</Link>
-          </div>
+          {/* --- DESKTOP NAVIGATION --- */}
+          <nav className="hidden md:flex items-center space-x-8">
+            
+            {/* 1. NEW ARRIVALS (Direct Link) */}
+            <Link to="/products?badge=NEW" className="text-sm font-bold text-red-600 hover:text-red-700 uppercase tracking-wide">
+              New Arrivals
+            </Link>
 
-          {/* 🔥 SEARCH + SMALLER ICONS */}
-          <div className="flex items-center space-x-2 sm:space-x-3">
-            {/* Search - WORKING */}
-            <div className="relative">
-              <button 
-                onClick={() => setShowSearch(!showSearch)}
-                className="p-1.5 sm:p-2 text-gray-600 hover:text-[#1F2B5B] rounded-lg hover:bg-gray-100 transition-all"
-              >
-                <Search className="w-4 h-4 sm:w-5 sm:h-5" />
-              </button>
-              {showSearch && (
-                <form onSubmit={handleSearch} className="absolute right-0 top-full mt-1 bg-white shadow-lg rounded-xl border p-2 w-64 sm:w-72 z-50">
-                  <input
-                    type="text"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Search products..."
-                    className="w-full p-2.5 text-sm border-none outline-none rounded-lg focus:ring-1 focus:ring-[#1F2B5B]"
-                    autoFocus
-                  />
-                </form>
-              )}
+            {/* 2. MEN DROPDOWN */}
+            <div className="relative group h-20 flex items-center">
+              <Link to="/products?gender=Men" className="text-sm font-medium text-gray-700 hover:text-[#1F2B5B] uppercase tracking-wide flex items-center gap-1">
+                Men <ChevronDown className="w-3 h-3 opacity-50" />
+              </Link>
+              <div className="absolute top-full left-0 w-56 bg-white shadow-xl rounded-b-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 border-t-2 border-[#1F2B5B] overflow-hidden">
+                <div className="py-2">
+                  <Link to="/products?gender=Men" className="block px-4 py-2 text-sm font-bold text-[#1F2B5B] hover:bg-gray-50">Shop All Men</Link>
+                  <div className="border-t border-gray-100 my-1"></div>
+                  {menCategories.length > 0 ? (
+                    menCategories.map((cat) => (
+                      <Link key={cat.id} to={`/products?gender=Men&category=${cat.name}`} className="block px-4 py-2 text-sm text-gray-600 hover:text-[#1F2B5B] hover:bg-gray-50">
+                        {cat.name}
+                      </Link>
+                    ))
+                  ) : (
+                    <span className="block px-4 py-2 text-xs text-gray-400 italic">No categories found</span>
+                  )}
+                </div>
+              </div>
             </div>
 
-            <Link to="/login" className="text-gray-600 hover:text-[#1F2B5B] p-1.5 sm:p-2 hover:bg-gray-100 rounded-lg transition-all">
-              <User className="w-4 h-4 sm:w-5 sm:h-5" />
+            {/* 3. WOMEN DROPDOWN */}
+            <div className="relative group h-20 flex items-center">
+              <Link to="/products?gender=Women" className="text-sm font-medium text-gray-700 hover:text-[#1F2B5B] uppercase tracking-wide flex items-center gap-1">
+                Women <ChevronDown className="w-3 h-3 opacity-50" />
+              </Link>
+              <div className="absolute top-full left-0 w-56 bg-white shadow-xl rounded-b-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 border-t-2 border-[#1F2B5B] overflow-hidden">
+                <div className="py-2">
+                  <Link to="/products?gender=Women" className="block px-4 py-2 text-sm font-bold text-[#1F2B5B] hover:bg-gray-50">Shop All Women</Link>
+                  <div className="border-t border-gray-100 my-1"></div>
+                  {womenCategories.length > 0 ? (
+                    womenCategories.map((cat) => (
+                      <Link key={cat.id} to={`/products?gender=Women&category=${cat.name}`} className="block px-4 py-2 text-sm text-gray-600 hover:text-[#1F2B5B] hover:bg-gray-50">
+                        {cat.name}
+                      </Link>
+                    ))
+                  ) : (
+                    <span className="block px-4 py-2 text-xs text-gray-400 italic">No categories found</span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* 4. COLLECTIONS DROPDOWN */}
+            <div className="relative group h-20 flex items-center">
+              <span className="text-sm font-medium text-gray-700 hover:text-[#1F2B5B] uppercase tracking-wide cursor-pointer flex items-center gap-1">
+                Collections <ChevronDown className="w-3 h-3 opacity-50" />
+              </span>
+              <div className="absolute top-full left-0 w-56 bg-white shadow-xl rounded-b-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 border-t-2 border-[#1F2B5B] overflow-hidden">
+                <div className="py-2">
+                  <Link to="/products?badge=BESTSELLER" className="block px-4 py-2 text-sm font-medium text-gray-900 hover:text-[#1F2B5B] hover:bg-gray-50">Best Sellers</Link>
+                  {collections.map((col) => (
+                    <Link key={col.id} to={`/products?collection=${col.slug}`} className="block px-4 py-2 text-sm text-gray-600 hover:text-[#1F2B5B] hover:bg-gray-50">
+                      {col.title}
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+          </nav>
+
+          {/* Icons */}
+          <div className="flex items-center space-x-3 sm:space-x-5">
+            <button onClick={() => setIsSearchOpen(!isSearchOpen)} className="p-1 text-gray-700 hover:text-[#1F2B5B] transition-colors">
+              <Search className="w-5 h-5" />
+            </button>
+            <Link to="/user" className="p-1 text-gray-700 hover:text-[#1F2B5B] transition-colors hidden sm:block">
+              <User className="w-5 h-5" />
             </Link>
-            
-            <Link to="/cart" className="relative text-gray-600 hover:text-[#1F2B5B] p-1.5 sm:p-2 hover:bg-gray-100 rounded-lg transition-all">
-              <ShoppingBag className="w-4 h-4 sm:w-5 sm:h-5" />
-              {cartItems.length > 0 && (
-                <span className="absolute -top-1 -right-1 bg-[#F4C430] text-[#1F2B5B] text-xs font-bold w-5 h-5 flex items-center justify-center rounded-full">
-                  {cartItems.length}
+            <Link to="/cart" className="p-1 text-gray-700 hover:text-[#1F2B5B] transition-colors relative">
+              <ShoppingBag className="w-5 h-5" />
+              {/* 🔥 FIX 2: Use cartCount derived variable */}
+              {cartCount > 0 && (
+                <span className="absolute -top-1 -right-1 bg-[#F4C430] text-[#1F2B5B] text-[10px] font-bold w-4 h-4 flex items-center justify-center rounded-full">
+                  {cartCount}
                 </span>
               )}
             </Link>
           </div>
         </div>
-      </nav>
 
-      {/* MOBILE MENU - Smaller Text */}
+        {/* Search Bar */}
+        {isSearchOpen && (
+          <div className="absolute top-full left-0 right-0 bg-white border-t border-gray-100 p-4 shadow-lg animate-fade-in">
+            <form onSubmit={handleSearch} className="max-w-3xl mx-auto flex items-center gap-2">
+              <Search className="w-5 h-5 text-gray-400" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search for products..."
+                className="flex-1 bg-transparent border-none focus:ring-0 text-sm placeholder:text-gray-400"
+                autoFocus
+              />
+              <button type="button" onClick={() => setIsSearchOpen(false)}><X className="w-5 h-5 text-gray-400 hover:text-gray-600" /></button>
+            </form>
+          </div>
+        )}
+      </div>
+
+      {/* --- MOBILE MENU (ACCORDION STYLE) --- */}
       {isMenuOpen && (
-        <div className="md:hidden fixed inset-0 z-[9999] bg-white">
-          <div className="h-screen flex flex-col pt-4 px-4 sm:px-6 overflow-y-auto">
-            <button 
-              onClick={() => setIsMenuOpen(false)}
-              className="self-end p-2 mb-6 rounded-full hover:bg-gray-100 transition-all"
-            >
-              <X className="w-6 h-6 text-gray-600" />
-            </button>
+        <div className="fixed inset-0 z-50 md:hidden">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setIsMenuOpen(false)}></div>
+          <div className="relative bg-white w-[85%] max-w-[320px] h-full shadow-2xl overflow-y-auto animate-slide-right flex flex-col">
+            
+            {/* Header */}
+            <div className="p-5 border-b flex justify-between items-center bg-gray-50">
+              <span className="font-bold text-lg text-[#1F2B5B] tracking-tight">MENU</span>
+              <button onClick={() => setIsMenuOpen(false)}><X className="w-6 h-6 text-gray-500" /></button>
+            </div>
+            
+            {/* Links */}
+            <div className="flex-1 p-5 space-y-2">
+              
+              {/* 1. New Arrivals */}
+              <Link to="/products?badge=NEW" className="block py-3 font-bold text-red-600 border-b border-gray-100" onClick={() => setIsMenuOpen(false)}>
+                NEW ARRIVALS
+              </Link>
 
-            <div className="space-y-1 mb-8">
-              <Link 
-                to="/products?gender=Men"
-                className="block py-3 px-3 text-lg sm:text-xl font-bold text-gray-900 hover:text-[#1F2B5B] border-l-4 border-transparent hover:border-[#1F2B5B] rounded-r-lg"
-                onClick={() => setIsMenuOpen(false)}
-              >
-                Men
+              {/* 2. Men Accordion */}
+              <div>
+                <button onClick={() => toggleMobileSubmenu('men')} className="w-full py-3 flex justify-between items-center font-bold text-gray-800 border-b border-gray-100">
+                  MEN <ChevronDown className={`w-4 h-4 transition-transform ${expandedMenu === 'men' ? 'rotate-180' : ''}`} />
+                </button>
+                {expandedMenu === 'men' && (
+                  <div className="pl-4 py-2 bg-gray-50 space-y-2">
+                    <Link to="/products?gender=Men" className="block py-2 text-sm font-semibold text-[#1F2B5B]" onClick={() => setIsMenuOpen(false)}>Shop All Men</Link>
+                    {menCategories.map((cat) => (
+                      <Link key={cat.id} to={`/products?gender=Men&category=${cat.name}`} className="block py-2 text-sm text-gray-600" onClick={() => setIsMenuOpen(false)}>{cat.name}</Link>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* 3. Women Accordion */}
+              <div>
+                <button onClick={() => toggleMobileSubmenu('women')} className="w-full py-3 flex justify-between items-center font-bold text-gray-800 border-b border-gray-100">
+                  WOMEN <ChevronDown className={`w-4 h-4 transition-transform ${expandedMenu === 'women' ? 'rotate-180' : ''}`} />
+                </button>
+                {expandedMenu === 'women' && (
+                  <div className="pl-4 py-2 bg-gray-50 space-y-2">
+                    <Link to="/products?gender=Women" className="block py-2 text-sm font-semibold text-[#1F2B5B]" onClick={() => setIsMenuOpen(false)}>Shop All Women</Link>
+                    {womenCategories.map((cat) => (
+                      <Link key={cat.id} to={`/products?gender=Women&category=${cat.name}`} className="block py-2 text-sm text-gray-600" onClick={() => setIsMenuOpen(false)}>{cat.name}</Link>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* 4. Best Sellers & Collections */}
+              <Link to="/products?badge=BESTSELLER" className="block py-3 font-medium text-gray-800 border-b border-gray-100" onClick={() => setIsMenuOpen(false)}>
+                Best Sellers
               </Link>
-              <Link 
-                to="/products?gender=Women"
-                className="block py-3 px-3 text-lg sm:text-xl font-bold text-gray-900 hover:text-[#1F2B5B] border-l-4 border-transparent hover:border-[#1F2B5B] rounded-r-lg"
-                onClick={() => setIsMenuOpen(false)}
-              >
-                Women
-              </Link>
+              {collections.map((col) => (
+                 <Link key={col.id} to={`/products?collection=${col.slug}`} className="block py-3 font-medium text-gray-800 border-b border-gray-100" onClick={() => setIsMenuOpen(false)}>
+                   {col.title}
+                 </Link>
+              ))}
+
             </div>
 
-            <div className="border-t pt-6 space-y-1">
-              <h3 className="text-base sm:text-lg font-bold text-[#1F2B5B] mb-4 px-1 tracking-wide uppercase">Most Popular</h3>
-              {mostPopularLinks.map((item) => (
-                <Link 
-                  key={item.name}
-                  to={item.link}
-                  className="block py-2.5 px-3 text-base sm:text-lg font-semibold text-gray-700 hover:text-[#1F2B5B] hover:bg-gray-50 rounded-lg transition-all border-l-2 border-transparent hover:border-[#1F2B5B] ml-2"
-                  onClick={() => setIsMenuOpen(false)}
-                >
-                  {item.name}
-                </Link>
-              ))}
+            {/* Footer Links */}
+            <div className="p-5 bg-gray-50 border-t">
+               <Link to="/user" className="flex items-center gap-2 font-medium text-gray-700" onClick={() => setIsMenuOpen(false)}>
+                 <User className="w-5 h-5" /> My Account
+               </Link>
             </div>
           </div>
         </div>

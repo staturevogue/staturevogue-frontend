@@ -1,133 +1,134 @@
 import { useState, useMemo, useEffect } from "react";
 import { useSearchParams, Link } from "react-router-dom";
-import { SlidersHorizontal, ChevronDown, X, Check, ArrowUpDown } from "lucide-react";
-import { products } from "../data/products";
+import { SlidersHorizontal, ChevronDown, X, Check, ArrowUpDown, Loader2 } from "lucide-react";
+import type { Product } from "../components/ProductCard"; 
 import ProductCard from "../components/ProductCard"; 
+import { storeService } from "../services/api";
 
 export default function ProductListing() {
   const [showFilters, setShowFilters] = useState(false);
   const [activeFilterTab, setActiveFilterTab] = useState("Price"); 
   const [searchParams] = useSearchParams();
   
+  // 🔥 FIX 1: Get 'badge' from URL (e.g. ?badge=NEW)
+  const urlBadge = searchParams.get("badge");
   const urlCategory = searchParams.get("category");
   const urlGender = searchParams.get("gender");
   const urlCollection = searchParams.get("collection");
+  const searchQuery = searchParams.get("search");
 
-  const [priceRange, setPriceRange] = useState([0, 5000]);
+  // API State
+  const [products, setProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
+  
+  // Dynamic Filters
+  const [allSizes, setAllSizes] = useState<string[]>([]);
+  const [allColors, setAllColors] = useState<string[]>([]);
+  const [availableGenders, setAvailableGenders] = useState<string[]>([]); 
+
+  // Selected Filters
+  const [priceRange, setPriceRange] = useState([0, 10000]);
   const [selectedSizes, setSelectedSizes] = useState<string[]>([]);
   const [selectedColors, setSelectedColors] = useState<string[]>([]);
   const [selectedGenders, setSelectedGenders] = useState<string[]>([]);
   const [onlyInStock, setOnlyInStock] = useState(false);
   const [sortBy, setSortBy] = useState("popular");
+  
   const [showCategoryLanding, setShowCategoryLanding] = useState(false);
   const [currentGender, setCurrentGender] = useState<string | null>(null);
+  const [genderCategories, setGenderCategories] = useState<any[]>([]);
 
-  // 1️⃣ Category Landing Logic - Men/Women ONLY
+  // 🔥 FIX 2: Update Page Title logic to include Badge names
+  const getPageTitle = () => {
+    if (urlBadge === "NEW") return "New Arrivals";
+    if (urlBadge === "BESTSELLER") return "Best Sellers";
+    if (urlBadge === "TRENDING") return "Trending Now";
+    if (urlBadge === "SALE") return "On Sale";
+    return urlCollection?.replace(/-/g, " ") || urlCategory || urlGender || "All Products";
+  };
+  
+  const pageTitle = getPageTitle();
+  const currentUrl = window.location.search ? `/products${window.location.search}` : "/products";
+
+  // 1️⃣ MAIN FETCH
   useEffect(() => {
-    if (urlGender && !urlCategory) {
-      setShowCategoryLanding(true);
-      setCurrentGender(urlGender);
-    } else {
-      setShowCategoryLanding(false);
-      setCurrentGender(null);
-    }
-  }, [urlGender, urlCategory]);
+    const fetchData = async () => {
+        setLoading(true);
+        try {
+            const params: any = {};
+            // 🔥 FIX 3: Pass badge to the API
+            if (urlBadge) params.badge = urlBadge;
+            if (urlGender) params.gender = urlGender;
+            if (urlCategory) params.category = urlCategory;
+            if (urlCollection) params.collection = urlCollection;
+            if (searchQuery) params.search = searchQuery;
 
-  // 2️⃣ Reset filters
-  useEffect(() => {
-    setSelectedSizes([]);
-    setSelectedColors([]);
-    setSelectedGenders([]);
-    setPriceRange([0, 5000]);
-  }, [urlCategory, urlGender, urlCollection]);
+            const data = await storeService.getProducts(params);
+            const fetchedProducts = data.results || data;
+            setProducts(fetchedProducts);
 
-  // 3️⃣ Get gender-specific categories with REAL product images
-  // 3️⃣ Get gender-specific categories with REAL product images - FIXED
-const getGenderCategories = (gender: string): {name: string, image: string, link: string}[] => {
-  return products
-    .filter(p => p.gender === gender)
-    .reduce((acc: {name: string, image: string, link: string}[], product) => {
-      const categoryName = product.category;
-      const categoryExists = acc.some(cat => cat.name === categoryName);
-      
-      if (!categoryExists) {
-        acc.push({
-          name: categoryName,
-          image: product.images[0], // ✅ REAL PRODUCT IMAGE
-          link: `/products?gender=${gender}&category=${encodeURIComponent(categoryName)}`
-        });
-      }
-      return acc;
-    }, [])
-    .slice(0, 6); // Top 6 categories
-};
+            // Calculate available filters based on fetched data
+            const sizes = new Set<string>();
+            const colors = new Set<string>();
+            const genders = new Set<string>(); 
 
+            fetchedProducts.forEach((p: any) => {
+                p.sizes?.forEach((s: any) => sizes.add(s.size));
+                p.colors?.forEach((c: any) => colors.add(c.name));
+                if (p.gender) genders.add(p.gender); 
+            });
 
-  // 4️⃣ Featured products for landing page (same gender only)
-  const featuredProducts = useMemo(() => {
-    if (!currentGender) return [];
-    return products
-      .filter(p => p.gender === currentGender)
-      .sort((a, b) => (b.rating * b.reviewCount) - (a.rating * a.reviewCount)) // Best rated
-      .slice(0, 4);
-  }, [currentGender]);
+            setAllSizes(Array.from(sizes).sort());
+            setAllColors(Array.from(colors).sort());
+            setAvailableGenders(Array.from(genders));
 
-  // 5️⃣ Gender mix logic (unchanged)
-  const hasMixedGenders = useMemo(() => {
-    const contextProducts = products.filter(product => {
-      if (urlCategory && product.category !== urlCategory) return false;
-      if (urlCollection === "new") {
-         if (!product.badge || (!product.badge.includes("NEW") && !product.badge.includes("TRENDING"))) return false;
-      }
-      if (urlCollection === "bestsellers") {
-         if (product.badge !== "BESTSELLER") return false;
-      }
-      return true;
-    });
-    const hasMen = contextProducts.some(p => p.gender === "Men");
-    const hasWomen = contextProducts.some(p => p.gender === "Women");
-    return hasMen && hasWomen;
-  }, [urlCategory, urlCollection]);
+            // Only show Landing Page if we are strictly browsing a Gender (and not a badge/category)
+            if (urlGender && !urlCategory && !urlCollection && !urlBadge) {
+                setShowCategoryLanding(true);
+                setCurrentGender(urlGender);
+                const cats = await storeService.getCategories({ gender: urlGender });
+                setGenderCategories(cats.results || cats);
+            } else {
+                setShowCategoryLanding(false);
+                setCurrentGender(null);
+            }
+        } catch (error) {
+            console.error(error);
+        } finally {
+            setLoading(false);
+        }
+    };
+    fetchData();
+  }, [urlCategory, urlGender, urlCollection, searchQuery, urlBadge]); // 🔥 FIX 4: Add urlBadge dependency
 
-  const mobileFilterTabs = ["Price", "Color", "Size", "Availability"];
-  if (!urlGender && hasMixedGenders) {
-    mobileFilterTabs.splice(3, 0, "Category");
-  }
-
-  const allSizes = Array.from(new Set(products.flatMap(p => p.sizes.map(s => s.size))));
-  const allColors = Array.from(new Set(products.flatMap(p => p.colors.map(c => c.name))));
-
+  // 2️⃣ FILTER LOGIC
   const toggleFilter = (item: string, list: string[], setList: (a: string[]) => void) => {
-    if (list.includes(item)) {
-      setList(list.filter(i => i !== item));
-    } else {
-      setList([...list, item]);
-    }
+    setList(list.includes(item) ? list.filter(i => i !== item) : [...list, item]);
   };
 
   const filteredProducts = useMemo(() => {
     return products.filter(product => {
-      if (urlGender && product.gender !== urlGender) return false; // ✅ ONLY SHOW SAME GENDER
-      if (urlCategory && product.category !== urlCategory) return false;
-      
-      if (urlCollection === "new") {
-         if (!product.badge || (!product.badge.includes("NEW") && !product.badge.includes("TRENDING"))) return false;
-      }
-      if (urlCollection === "bestsellers") {
-         if (product.badge !== "BESTSELLER") return false;
-      }
-
+      // Price Filter
       if (product.price > priceRange[1]) return false;
-      if (!urlGender && selectedGenders.length > 0 && !selectedGenders.includes(product.gender)) return false;
+      
+      // Gender Filter
+      if (selectedGenders.length > 0 && !selectedGenders.includes((product as any).gender)) {
+         return false;
+      }
 
+      // Size Filter
       if (selectedSizes.length > 0) {
-        const hasSize = product.sizes.some(s => selectedSizes.includes(s.size));
-        if (!hasSize) return false;
+        const productSizes = (product as any).sizes?.map((s: any) => s.size) || [];
+        if (!selectedSizes.some(s => productSizes.includes(s))) return false;
       }
+
+      // Color Filter
       if (selectedColors.length > 0) {
-        const hasColor = product.colors.some(c => selectedColors.includes(c.name));
-        if (!hasColor) return false;
+        const productColors = (product as any).colors?.map((c: any) => c.name) || [];
+        if (!selectedColors.some(c => productColors.includes(c))) return false;
       }
+
+      // Stock Filter
       if (onlyInStock && !product.inStock) return false;
       
       return true;
@@ -137,21 +138,32 @@ const getGenderCategories = (gender: string): {name: string, image: string, link
       if (sortBy === "newest") return -1;
       return 0; 
     });
-  }, [urlCategory, urlGender, urlCollection, priceRange, selectedSizes, selectedColors, selectedGenders, onlyInStock, sortBy]);
+  }, [products, priceRange, selectedSizes, selectedColors, selectedGenders, onlyInStock, sortBy]);
 
   const sliderStyle = {
-    background: `linear-gradient(to right, #1F2B5B 0%, #1F2B5B ${(priceRange[1] / 5000) * 100}%, #e5e7eb ${(priceRange[1] / 5000) * 100}%, #e5e7eb 100%)`
+    background: `linear-gradient(to right, #1F2B5B 0%, #1F2B5B ${(priceRange[1] / 10000) * 100}%, #e5e7eb ${(priceRange[1] / 10000) * 100}%, #e5e7eb 100%)`
   };
 
+  const featuredProducts = useMemo(() => {
+    if (!currentGender) return [];
+    return products.slice(0, 4);
+  }, [products, currentGender]);
+
+  const showGenderFilter = availableGenders.length > 1; 
+
+  const mobileFilterTabs = ["Price", "Color", "Size", "Availability"];
+  if (showGenderFilter) {
+    mobileFilterTabs.splice(0, 0, "Gender");
+  }
+
   const renderMobileFilterContent = () => {
-    // ... (keep your existing renderMobileFilterContent exactly same)
     switch (activeFilterTab) {
       case "Price":
         return (
           <div className="p-4">
             <h4 className="font-bold mb-4 text-gray-700">Max Price: ₹{priceRange[1]}</h4>
-            <input type="range" min="0" max="5000" step="100" value={priceRange[1]} onChange={(e) => setPriceRange([0, parseInt(e.target.value)])} className="w-full h-1 rounded-lg appearance-none cursor-pointer" style={sliderStyle} />
-            <div className="flex justify-between text-xs text-gray-500 mt-2"><span>₹0</span><span>₹5000</span></div>
+            <input type="range" min="0" max="10000" step="100" value={priceRange[1]} onChange={(e) => setPriceRange([0, parseInt(e.target.value)])} className="w-full h-1 rounded-lg appearance-none cursor-pointer" style={sliderStyle} />
+            <div className="flex justify-between text-xs text-gray-500 mt-2"><span>₹0</span><span>₹10000</span></div>
           </div>
         );
       case "Color":
@@ -173,7 +185,7 @@ const getGenderCategories = (gender: string): {name: string, image: string, link
             ))}
           </div>
         );
-      case "Category":
+      case "Gender": 
         return (
           <div className="p-4 space-y-3">
             {["Men", "Women"].map(gender => (
@@ -197,62 +209,36 @@ const getGenderCategories = (gender: string): {name: string, image: string, link
     }
   };
 
-  // 🔥 MEN/WOMEN LANDING PAGE WITH CATEGORIES + FEATURED PRODUCTS
   if (showCategoryLanding && currentGender) {
-    const genderCategories = getGenderCategories(currentGender);
-    
+    if(loading) return <div className="h-screen flex justify-center items-center"><Loader2 className="animate-spin text-[#1F2B5B]" /></div>
     return (
       <div className="min-h-screen bg-white">
-        {/* Header */}
         <div className="max-w-7xl mx-auto px-4 py-16">
           <div className="text-center mb-16">
-            <h1 className="text-2xl md:text-5xl font-bold text-[#1F2B5B] uppercase tracking-wide mb-4">
-              {currentGender}
-            </h1>
-            <p className="text-0xl md:text-xl text-gray-600 max-w-xl mx-auto">
-              Explore our {currentGender.toLowerCase()} collection
-            </p>
+            <h1 className="text-2xl md:text-5xl font-bold text-[#1F2B5B] uppercase tracking-wide mb-4">{currentGender}</h1>
+            <p className="text-0xl md:text-xl text-gray-600 max-w-xl mx-auto">Explore our {currentGender.toLowerCase()} collection</p>
           </div>
-
-          {/* 🔥 CATEGORIES GRID - SMALL CARDS (1-2 ROWS) */}
-<section className="mb-20">
-  <h2 className="text-2xl font-bold text-[#1F2B5B] mb-8 text-center">Shop by Category</h2>
-  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 sm:gap-4 max-w-6xl mx-auto">
-    {genderCategories.map((col, idx) => (
-      <Link 
-        key={idx} 
-        to={col.link}
-        className="group block text-center hover:shadow-md transition-all duration-300 rounded-xl p-2 bg-white border border-gray-100 hover:border-[#1F2B5B] hover:-translate-y-1"
-      >
-        <div className="w-full aspect-[3/4] bg-gray-100 rounded-lg overflow-hidden mb-2">
-          <img 
-            src={col.image} 
-            alt={col.name} 
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" 
-          />
-        </div>
-        <h3 className="font-semibold text-sm text-gray-900 group-hover:text-[#1F2B5B] transition-colors tracking-wide line-clamp-1">
-          {col.name}
-        </h3>
-      </Link>
-    ))}
-  </div>
-</section>
-
-
-          {/* 🔥 FEATURED PRODUCTS - SAME GENDER ONLY */}
+          <section className="mb-20">
+            <h2 className="text-2xl font-bold text-[#1F2B5B] mb-8 text-center">Shop by Category</h2>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 sm:gap-4 max-w-6xl mx-auto">
+              {genderCategories.map((col, idx) => (
+                <Link key={idx} to={`/products?gender=${currentGender}&category=${col.name}`} className="group block text-center hover:shadow-md transition-all duration-300 rounded-xl p-2 bg-white border border-gray-100 hover:border-[#1F2B5B] hover:-translate-y-1">
+                  <div className="w-full aspect-[3/4] bg-gray-100 rounded-lg overflow-hidden mb-2">
+                    <img src={col.image || "/placeholder.jpg"} alt={col.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                  </div>
+                  <h3 className="font-semibold text-sm text-gray-900 group-hover:text-[#1F2B5B] transition-colors tracking-wide line-clamp-1">{col.name}</h3>
+                </Link>
+              ))}
+            </div>
+          </section>
           {featuredProducts.length > 0 && (
             <section>
               <h2 className="text-2xl font-bold text-[#1F2B5B] mb-8 flex items-center justify-between">
                 <span>Featured Products</span>
-                <Link to={`/products?gender=${currentGender}`} className="text-sm font-semibold hover:underline flex items-center">
-                  View All → 
-                </Link>
+                <Link to={`/products?gender=${currentGender}`} onClick={() => {setShowCategoryLanding(false); setCurrentGender(null)}} className="text-sm font-semibold hover:underline flex items-center">View All →</Link>
               </h2>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-                {featuredProducts.map((product) => (
-                  <ProductCard key={product.id} product={product} />
-                ))}
+                {featuredProducts.map((product) => <ProductCard key={product.id} product={product} />)}
               </div>
             </section>
           )}
@@ -261,19 +247,16 @@ const getGenderCategories = (gender: string): {name: string, image: string, link
     );
   }
 
-  // 4️⃣ EXISTING PRODUCT LISTING (unchanged)
   return (
     <div className="min-h-screen bg-white">
-      {/* Your existing product listing JSX - exactly the same as before */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 pb-24 md:pb-8"> 
         <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
           <div>
             <h1 className="text-2xl font-bold text-[#1F2B5B] uppercase tracking-wide">
-              {urlCollection?.replace("-", " ") || urlCategory || urlGender || "All Products"}
+              {pageTitle}
             </h1>
             <p className="text-gray-500 text-sm mt-1">{filteredProducts.length} Products</p>
           </div>
-          
           <div className="hidden md:flex items-center space-x-4">
             <span className="text-gray-600 font-medium">Sort By:</span>
             <div className="relative group">
@@ -291,29 +274,50 @@ const getGenderCategories = (gender: string): {name: string, image: string, link
         <div className="flex gap-10">
           <aside className="hidden md:block w-64 flex-shrink-0">
             <div className="space-y-8 sticky top-24">
-              {!urlGender && hasMixedGenders && (
+              
+              {showGenderFilter && (
                 <div>
-                  <h3 className="font-bold text-sm text-gray-900 mb-4 uppercase tracking-wider">Category</h3>
-                  <div className="space-y-2">{["Men", "Women"].map(gender => (<label key={gender} className="flex items-center space-x-3 cursor-pointer group"><input type="checkbox" className="w-4 h-4 border-gray-300 rounded text-[#1F2B5B] focus:ring-[#1F2B5B]" checked={selectedGenders.includes(gender)} onChange={() => toggleFilter(gender, selectedGenders, setSelectedGenders)} /><span className="text-sm text-gray-600 group-hover:text-[#1F2B5B]">{gender}</span></label>))}</div>
+                  <h3 className="font-bold text-sm text-gray-900 mb-4 uppercase tracking-wider">Gender</h3>
+                  <div className="space-y-2">
+                      {["Men", "Women"].map(gender => (
+                          <label key={gender} className="flex items-center space-x-3 cursor-pointer group">
+                              <input type="checkbox" className="w-4 h-4 border-gray-300 rounded text-[#1F2B5B] focus:ring-[#1F2B5B]" checked={selectedGenders.includes(gender)} onChange={() => toggleFilter(gender, selectedGenders, setSelectedGenders)} />
+                              <span className="text-sm text-gray-600 group-hover:text-[#1F2B5B]">{gender}</span>
+                          </label>
+                      ))}
+                  </div>
                 </div>
               )}
 
               <div>
                 <h3 className="font-bold text-sm text-gray-900 mb-4 uppercase tracking-wider">Price</h3>
-                <input type="range" min="0" max="5000" step="100" value={priceRange[1]} onChange={(e) => setPriceRange([0, parseInt(e.target.value)])} className="w-full h-1 rounded-lg appearance-none cursor-pointer" style={sliderStyle} />
+                <input type="range" min="0" max="10000" step="100" value={priceRange[1]} onChange={(e) => setPriceRange([0, parseInt(e.target.value)])} className="w-full h-1 rounded-lg appearance-none cursor-pointer" style={sliderStyle} />
                 <div className="flex justify-between text-xs text-gray-500 mt-2 font-medium"><span>₹0</span><span>₹{priceRange[1]}</span></div>
               </div>
-
               <div>
                 <h3 className="font-bold text-sm text-gray-900 mb-4 uppercase tracking-wider">Size</h3>
-                <div className="grid grid-cols-3 gap-2">{allSizes.map(size => (<button key={size} onClick={() => toggleFilter(size, selectedSizes, setSelectedSizes)} className={`px-3 py-2 text-sm border rounded flex items-center justify-center transition-all ${selectedSizes.includes(size) ? "border-[#1F2B5B] bg-[#1F2B5B] text-white" : "border-gray-200 text-gray-600 hover:border-[#1F2B5B]"}`}>{size}</button>))}</div>
+                <div className="grid grid-cols-3 gap-2">
+                    {allSizes.length === 0 && <span className="text-xs text-gray-400 col-span-3">No sizes available</span>}
+                    {allSizes.map(size => (
+                        <button key={size} onClick={() => toggleFilter(size, selectedSizes, setSelectedSizes)} className={`px-3 py-2 text-sm border rounded flex items-center justify-center transition-all ${selectedSizes.includes(size) ? "border-[#1F2B5B] bg-[#1F2B5B] text-white" : "border-gray-200 text-gray-600 hover:border-[#1F2B5B]"}`}>{size}</button>
+                    ))}
+                </div>
               </div>
-
               <div>
                 <h3 className="font-bold text-sm text-gray-900 mb-4 uppercase tracking-wider">Color</h3>
-                <div className="space-y-2">{allColors.map(color => (<label key={color} className="flex items-center space-x-3 cursor-pointer group"><div className={`w-5 h-5 rounded-full border border-gray-200 flex items-center justify-center transition-colors ${selectedColors.includes(color) ? 'bg-[#1F2B5B] border-[#1F2B5B]' : 'bg-white'}`}>{selectedColors.includes(color) && <Check className="w-3 h-3 text-white" />}</div><input type="checkbox" className="hidden" checked={selectedColors.includes(color)} onChange={() => toggleFilter(color, selectedColors, setSelectedColors)} /><span className="text-sm text-gray-600 group-hover:text-[#1F2B5B]">{color}</span></label>))}</div>
+                <div className="space-y-2">
+                    {allColors.length === 0 && <span className="text-xs text-gray-400">No colors available</span>}
+                    {allColors.map(color => (
+                        <label key={color} className="flex items-center space-x-3 cursor-pointer group">
+                            <div className={`w-5 h-5 rounded-full border border-gray-200 flex items-center justify-center transition-colors ${selectedColors.includes(color) ? 'bg-[#1F2B5B] border-[#1F2B5B]' : 'bg-white'}`}>
+                                {selectedColors.includes(color) && <Check className="w-3 h-3 text-white" />}
+                            </div>
+                            <input type="checkbox" className="hidden" checked={selectedColors.includes(color)} onChange={() => toggleFilter(color, selectedColors, setSelectedColors)} />
+                            <span className="text-sm text-gray-600 group-hover:text-[#1F2B5B]">{color}</span>
+                        </label>
+                    ))}
+                </div>
               </div>
-
               <div>
                 <h3 className="font-bold text-sm text-gray-900 mb-4 uppercase tracking-wider">Availability</h3>
                 <label className="flex items-center space-x-3 cursor-pointer group">
@@ -321,27 +325,36 @@ const getGenderCategories = (gender: string): {name: string, image: string, link
                   <span className="text-sm text-gray-600 group-hover:text-[#1F2B5B]">In Stock Only</span>
                 </label>
               </div>
-
-              <button onClick={() => {setSelectedSizes([]); setSelectedColors([]); setSelectedGenders([]); setOnlyInStock(false); setPriceRange([0,5000])}} className="text-xs text-[#1F2B5B] underline font-medium hover:text-[#F4C430]">Clear All Filters</button>
+              <button onClick={() => {setSelectedSizes([]); setSelectedColors([]); setSelectedGenders([]); setOnlyInStock(false); setPriceRange([0,10000])}} className="text-xs text-[#1F2B5B] underline font-medium hover:text-[#F4C430]">Clear All Filters</button>
             </div>
           </aside>
 
           <div className="flex-1">
-            {filteredProducts.length === 0 ? (
+            {loading ? (
+                <div className="flex justify-center py-20"><Loader2 className="w-8 h-8 animate-spin text-[#1F2B5B]" /></div>
+            ) : filteredProducts.length === 0 ? (
               <div className="text-center py-20 bg-gray-50 rounded-lg border border-dashed border-gray-200">
                 <p className="text-gray-500">No products match your filters.</p>
-                <button onClick={() => {setSelectedSizes([]); setSelectedColors([]); setOnlyInStock(false); setPriceRange([0,5000])}} className="mt-4 text-[#1F2B5B] font-semibold hover:underline">Clear Filters</button>
+                <button onClick={() => {setSelectedSizes([]); setSelectedColors([]); setOnlyInStock(false); setPriceRange([0,10000])}} className="mt-4 text-[#1F2B5B] font-semibold hover:underline">Clear Filters</button>
               </div>
             ) : (
               <div className="grid grid-cols-2 lg:grid-cols-3 gap-x-4 md:gap-x-6 gap-y-8 md:gap-y-10">
-                {filteredProducts.map(product => <ProductCard key={product.id} product={product} />)}
+                {filteredProducts.map(product => (
+                  <ProductCard 
+                    key={product.id} 
+                    product={product} 
+                    breadcrumb={{ 
+                      label: pageTitle, 
+                      url: currentUrl
+                    }} 
+                  />
+                ))}
               </div>
             )}
           </div>
         </div>
       </div>
 
-      {/* Mobile footer + filters - exactly same as before */}
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-40 md:hidden shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]">
         <div className="flex h-14 divide-x divide-gray-200">
           <div className="flex-1 relative flex items-center justify-center">
@@ -380,7 +393,7 @@ const getGenderCategories = (gender: string): {name: string, image: string, link
               </div>
             </div>
             <div className="p-4 border-t flex gap-3 bg-white">
-              <button onClick={() => {setSelectedSizes([]); setSelectedColors([]); setSelectedGenders([]); setOnlyInStock(false); setPriceRange([0,5000])}} className="flex-1 py-3 text-sm font-semibold text-gray-700 bg-gray-100 rounded-lg">Clear All</button>
+              <button onClick={() => {setSelectedSizes([]); setSelectedColors([]); setOnlyInStock(false); setPriceRange([0,10000])}} className="flex-1 py-3 text-sm font-semibold text-gray-700 bg-gray-100 rounded-lg">Clear All</button>
               <button onClick={() => setShowFilters(false)} className="flex-1 py-3 text-sm font-semibold text-white bg-[#1F2B5B] rounded-lg">Apply</button>
             </div>
           </div>

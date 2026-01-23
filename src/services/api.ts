@@ -36,6 +36,7 @@ api.interceptors.response.use(
   }
 );
 
+
 export const authService = {
   // 1. Standard Login
   login: async (credentials: any) => {
@@ -90,7 +91,8 @@ export const authService = {
 };
 
 export const storeService = {
-  getProducts: async (params?: { category?: string; is_new?: boolean }) => {
+  // Update the params type to 'any' to allow badge, collection, search, etc.
+  getProducts: async (params?: any) => { 
     const response = await api.get('/store/products/', { params });
     return response.data;
   },
@@ -98,8 +100,23 @@ export const storeService = {
     const response = await api.get(`/store/products/${slug}/`);
     return response.data;
   },
-  getCategories: async () => {
-    const response = await api.get('/store/categories/');
+  getCategories: async (params?: { featured?: boolean, gender?: string }) => {
+    const response = await api.get('/store/categories/', { params });
+    return response.data;
+  },
+
+  // 4. Get Collections (For "Most Popular", "Gym Fit" sections)
+  getCollections: async () => {
+    const response = await api.get('/store/collections/');
+    return response.data;
+  },
+  getReviews: async (slug: string) => {
+    const response = await api.get(`/store/products/${slug}/reviews/`);
+    return response.data;
+  },
+
+  addReview: async (slug: string, data: { user_name: string, rating: number, comment: string }) => {
+    const response = await api.post(`/store/products/${slug}/reviews/`, data);
     return response.data;
   },
 };
