@@ -3,10 +3,11 @@ import { useNavigate, Link } from "react-router-dom";
 import { 
   Package, MapPin, LogOut, ArrowLeft, Loader2, ChevronDown, 
   ChevronLeft, ChevronRight, Truck, CheckCircle, Clock, AlertCircle, 
-  Trash2, Star, Plus 
+  Trash2, Star, Plus, XCircle, RefreshCw, RotateCcw
 } from "lucide-react";
 import { toast } from "sonner";
-import { orderService, authService } from "../services/api";
+import { orderService, authService, } from "../services/api";
+import api from "../services/api"; // ✅ Imported 'api' for direct calls
 
 // --- INTERFACES ---
 interface OrderItem {
@@ -77,7 +78,7 @@ const UserProfile = () => {
     is_default: false,
   });
 
-  // --- 1. AUTH CHECK (Redirect immediately if no token) ---
+  // --- 1. AUTH CHECK ---
   useEffect(() => {
     const token = localStorage.getItem("userToken");
     if (!token) {
@@ -96,7 +97,6 @@ const UserProfile = () => {
         if (user.is_staff || user.is_superuser) {
           setIsAdmin(true);
         }
-        // Load initial data based on active tab
         if (activeTab === 'orders') fetchOrders();
         if (activeTab === 'addresses') fetchAddresses();
       } catch (e) {
@@ -111,7 +111,6 @@ const UserProfile = () => {
     try {
       setLoadingOrders(true);
       const data = await orderService.getUserOrders();
-      // Handle Django Rest Framework pagination (results) vs direct array
       const ordersList = Array.isArray(data) ? data : data.results || [];
       setAllOrders(ordersList);
       setCurrentPage(1); 
@@ -141,6 +140,31 @@ const UserProfile = () => {
     }
   };
 
+  // ✅ NEW: Handle Cancel Order
+  const handleCancelOrder = async (orderId: number) => {
+    if (!window.confirm("Are you sure you want to cancel? If paid, a refund will be initiated instantly.")) return;
+    
+    try {
+      // Calling the backend API endpoint we created
+      await api.post(`/orders/${orderId}/cancel/`);
+      toast.success("Order cancelled successfully");
+      fetchOrders(); // Refresh list to show new status
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error || "Failed to cancel order");
+    }
+  };
+
+  // ✅ NEW: Handle Return/Exchange
+  const handleReturnExchange = async (orderId: number, type: 'return' | 'exchange') => {
+    try {
+        await api.post(`/orders/${orderId}/request-action/`, { type });
+        toast.success(`${type === 'return' ? 'Return' : 'Exchange'} request submitted.`);
+        fetchOrders();
+    } catch (err: any) {
+        toast.error(err.response?.data?.error || "Request failed");
+    }
+  };
+
   // --- ADDRESS FUNCTIONS ---
   const fetchAddresses = async () => {
     setLoadingAddresses(true);
@@ -149,7 +173,6 @@ const UserProfile = () => {
       const list = Array.isArray(data) ? data : data.results || [];
       setAddresses(list);
     } catch (err: any) {
-      console.error("Failed to fetch addresses", err);
       if (err?.response?.status !== 401) {
         toast.error("Could not load saved addresses");
       }
@@ -173,7 +196,6 @@ const UserProfile = () => {
       toast.error("You can save up to 3 addresses only.");
       return;
     }
-    // Validation
     if (!newAddress.address || !newAddress.city || !newAddress.zip_code || !newAddress.phone) {
       toast.error("Please fill required fields.");
       return;
@@ -184,7 +206,6 @@ const UserProfile = () => {
       await authService.saveAddress(newAddress);
       toast.success("Address saved successfully");
       setShowAddForm(false);
-      // Reset form
       setNewAddress({
         label: 'Home',
         first_name: '', last_name: '', 
@@ -195,7 +216,6 @@ const UserProfile = () => {
       });
       fetchAddresses();
     } catch (err: any) {
-      console.error("Save address error", err);
       toast.error(err?.response?.data?.[0] || "Failed to save address");
     } finally {
       setSubmittingAddress(false);
@@ -208,7 +228,6 @@ const UserProfile = () => {
       toast.success("Address deleted");
       fetchAddresses();
     } catch (err: any) {
-      console.error("Delete address error", err);
       toast.error("Failed to delete address");
     }
   };
@@ -219,15 +238,13 @@ const UserProfile = () => {
       toast.success("Default address updated");
       fetchAddresses();
     } catch (err: any) {
-      console.error("Set default error", err);
       toast.error("Failed to set default");
     }
   };
 
-  // --- SHARED UTILS ---
   const handleLogout = () => {
     localStorage.removeItem("userToken");
-    localStorage.removeItem('cart'); // Optional: Clear cart on logout
+    localStorage.removeItem('cart'); 
     toast.success("Logged out successfully");
     navigate("/login"); 
   };
@@ -241,10 +258,7 @@ const UserProfile = () => {
     } catch { return dateString; }
   };
 
-  // Admin sees all, User sees only Paid orders (or all depending on your flow)
-  const filteredOrders = isAdmin 
-    ? allOrders 
-    : allOrders; 
+  const filteredOrders = isAdmin ? allOrders : allOrders; 
 
   const totalPages = Math.ceil(filteredOrders.length / ORDERS_PER_PAGE);
   const startIndex = (currentPage - 1) * ORDERS_PER_PAGE;
@@ -257,12 +271,17 @@ const UserProfile = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  // ✅ UPDATED: Status Config for new statuses
   const getStatusConfig = (status: string) => {
     switch (status) {
       case 'Delivered': return { icon: <CheckCircle className="w-5 h-5" />, colorClass: 'bg-green-100 text-green-700 border-green-200', label: 'Delivered' };
       case 'Shipped': return { icon: <Truck className="w-5 h-5" />, colorClass: 'bg-blue-100 text-blue-700 border-blue-200', label: 'Shipped' };
       case 'Processing': return { icon: <Clock className="w-5 h-5" />, colorClass: 'bg-amber-100 text-amber-700 border-amber-200', label: 'Processing' };
-      case 'Cancelled': return { icon: <AlertCircle className="w-5 h-5" />, colorClass: 'bg-red-100 text-red-700 border-red-200', label: 'Cancelled' };
+      case 'Cancelled': return { icon: <XCircle className="w-5 h-5" />, colorClass: 'bg-red-100 text-red-700 border-red-200', label: 'Cancelled' };
+      case 'Refunded': return { icon: <RefreshCw className="w-5 h-5" />, colorClass: 'bg-purple-100 text-purple-700 border-purple-200', label: 'Refunded' };
+      case 'Refund Initiated': return { icon: <RefreshCw className="w-5 h-5" />, colorClass: 'bg-purple-100 text-purple-700 border-purple-200', label: 'Refund Initiated' };
+      case 'Return Requested': return { icon: <AlertCircle className="w-5 h-5" />, colorClass: 'bg-orange-100 text-orange-700 border-orange-200', label: 'Return Requested' };
+      case 'Exchange Requested': return { icon: <AlertCircle className="w-5 h-5" />, colorClass: 'bg-indigo-100 text-indigo-700 border-indigo-200', label: 'Exchange Requested' };
       default: return { icon: <Package className="w-5 h-5" />, colorClass: 'bg-gray-100 text-gray-700 border-gray-200', label: status };
     }
   };
@@ -345,6 +364,10 @@ const UserProfile = () => {
                     <div className="space-y-6">
                       {paginatedOrders.map((order) => {
                         const statusConfig = getStatusConfig(order.order_status);
+                        // ✅ Logic to show actions
+                        const canCancel = ['Processing', 'Pending'].includes(order.order_status);
+                        const canReturn = order.order_status === 'Delivered';
+
                         return (
                           <div key={order.id} className="bg-white rounded-lg border border-gray-200 overflow-hidden shadow-sm hover:shadow-md transition-shadow">
                             
@@ -375,6 +398,8 @@ const UserProfile = () => {
                                     <div className="flex justify-end gap-2 text-xs font-medium">
                                         {order.payment_status === 'Paid' ? (
                                             <span className="text-green-600 bg-green-50 px-2 py-1 rounded">Payment Paid</span>
+                                        ) : order.payment_status === 'Refunded' ? (
+                                            <span className="text-purple-600 bg-purple-50 px-2 py-1 rounded">Refunded</span>
                                         ) : (
                                             <span className="text-orange-600 bg-orange-50 px-2 py-1 rounded">Payment Pending</span>
                                         )}
@@ -385,8 +410,9 @@ const UserProfile = () => {
                             {/* Order Body */}
                             <div className="p-6 cursor-pointer" onClick={(e) => {
                                 if ((e.target as HTMLElement).tagName === 'SELECT') return;
+                                if ((e.target as HTMLElement).tagName === 'BUTTON') return; // Don't expand if button clicked
                                 setExpandedOrderId(expandedOrderId === order.id ? null : order.id);
-                              }}>
+                            }}>
                               <div className="flex flex-col md:flex-row gap-6">
                                 <div className="flex-1">
                                     <div className="space-y-4">
@@ -395,24 +421,24 @@ const UserProfile = () => {
                                                 ? item.product_slug 
                                                 : item.product_name.toLowerCase().replace(/\s+/g, '-').replace(/[^\w-]+/g, '');
                                             return (
-                                              <div key={idx} className="flex gap-4 items-start group">
-                                                  <div className="pt-1 w-full">
-                                                      <Link 
-                                                          to={`/product/${finalSlug}`} 
-                                                          className="font-medium text-lg text-gray-900 hover:text-[#1F2B5B] transition-colors block leading-tight"
-                                                          onClick={(e) => e.stopPropagation()}
-                                                      >
-                                                          {item.product_name}
-                                                      </Link>
-                                                      <div className="flex items-center gap-3 text-sm text-gray-500 mt-1">
-                                                          <span className="bg-gray-100 px-2 py-0.5 rounded text-xs text-gray-700 border border-gray-200">{item.variant_label}</span>
-                                                          <span>Qty: {item.quantity}</span>
-                                                      </div>
-                                                      <p className="text-sm font-bold text-gray-900 mt-2">
-                                                          {new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(parseFloat(item.price))}
-                                                      </p>
-                                                  </div>
-                                              </div>
+                                                <div key={idx} className="flex gap-4 items-start group">
+                                                    <div className="pt-1 w-full">
+                                                        <Link 
+                                                            to={`/product/${finalSlug}`} 
+                                                            className="font-medium text-lg text-gray-900 hover:text-[#1F2B5B] transition-colors block leading-tight"
+                                                            onClick={(e) => e.stopPropagation()}
+                                                        >
+                                                            {item.product_name}
+                                                        </Link>
+                                                        <div className="flex items-center gap-3 text-sm text-gray-500 mt-1">
+                                                            <span className="bg-gray-100 px-2 py-0.5 rounded text-xs text-gray-700 border border-gray-200">{item.variant_label}</span>
+                                                            <span>Qty: {item.quantity}</span>
+                                                        </div>
+                                                        <p className="text-sm font-bold text-gray-900 mt-2">
+                                                            {new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(parseFloat(item.price))}
+                                                        </p>
+                                                    </div>
+                                                </div>
                                             );
                                         })}
                                         {order.items.length > 2 && expandedOrderId !== order.id && (
@@ -422,12 +448,45 @@ const UserProfile = () => {
                                 </div>
 
                                 <div className="md:w-1/3 flex flex-col items-start md:items-end justify-center gap-4 border-t md:border-t-0 md:border-l border-gray-100 pt-4 md:pt-0 md:pl-6">
+                                    
+                                    {/* Status Badge */}
                                     <div className={`flex items-center gap-2 px-4 py-2 rounded-full border ${statusConfig.colorClass}`}>
                                         {statusConfig.icon}
                                         <span className="font-semibold text-sm">{statusConfig.label}</span>
                                     </div>
+
+                                    {/* ✅ ACTION BUTTONS */}
+                                    
+                                    {/* Cancel Button */}
+                                    {canCancel && (
+                                        <button 
+                                            onClick={(e) => { e.stopPropagation(); handleCancelOrder(order.id); }}
+                                            className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-red-700 bg-red-50 border border-red-200 rounded-md hover:bg-red-100 transition-colors"
+                                        >
+                                            <XCircle className="w-4 h-4" /> Cancel Order
+                                        </button>
+                                    )}
+
+                                    {/* Return/Exchange Buttons */}
+                                    {canReturn && (
+                                        <div className="flex gap-2">
+                                            <button 
+                                                onClick={(e) => { e.stopPropagation(); handleReturnExchange(order.id, 'return'); }}
+                                                className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-orange-700 bg-orange-50 border border-orange-200 rounded-md hover:bg-orange-100 transition-colors"
+                                            >
+                                                <RotateCcw className="w-3 h-3" /> Return
+                                            </button>
+                                            <button 
+                                                onClick={(e) => { e.stopPropagation(); handleReturnExchange(order.id, 'exchange'); }}
+                                                className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-md hover:bg-blue-100 transition-colors"
+                                            >
+                                                <RefreshCw className="w-3 h-3" /> Exchange
+                                            </button>
+                                        </div>
+                                    )}
+
                                     {isAdmin && (
-                                        <div className="w-full">
+                                        <div className="w-full mt-2">
                                             <label className="text-xs text-gray-500 font-medium block mb-1">Update Status (Admin)</label>
                                             <select
                                                 value={order.order_status}
@@ -439,6 +498,7 @@ const UserProfile = () => {
                                                 <option value="Shipped">Shipped</option>
                                                 <option value="Delivered">Delivered</option>
                                                 <option value="Cancelled">Cancelled</option>
+                                                <option value="Refunded">Refunded</option>
                                             </select>
                                         </div>
                                     )}
@@ -497,12 +557,15 @@ const UserProfile = () => {
               </div>
             )}
 
-            {/* --- ADDRESSES TAB --- */}
+            {/* --- ADDRESSES TAB (Unchanged) --- */}
             {activeTab === 'addresses' && (
               <div className="animate-fade-in">
+                {/* ... (Kept existing address logic as provided) ... */}
+                {/* I've hidden this part for brevity as it is identical to your provided code */}
+                {/* Paste your existing Address Tab code here starting from <div className="flex justify-between..." */}
+                
                 <div className="flex justify-between items-center mb-6">
                   <h2 className="text-xl font-bold text-[#1F2B5B]">Saved Addresses</h2>
-                  {/* Show Add Button only if less than 3 addresses */}
                   {addresses.length < 3 && !showAddForm && (
                     <button 
                       onClick={() => setShowAddForm(true)}
@@ -587,7 +650,6 @@ const UserProfile = () => {
                               </div>
                               
                               <div className="flex gap-3 mt-2 sm:mt-0">
-                                {/* SET DEFAULT BUTTON */}
                                 {!addr.is_default && (
                                   <button 
                                     onClick={() => handleSetDefault(addr.id)}
@@ -596,8 +658,6 @@ const UserProfile = () => {
                                     <Star className="w-3 h-3" /> Set Default
                                   </button>
                                 )}
-                                
-                                {/* DELETE BUTTON */}
                                 <button 
                                   onClick={() => handleDeleteAddress(addr.id)}
                                   className="flex items-center gap-1 text-xs font-medium text-red-500 hover:text-red-700 border border-gray-300 hover:border-red-200 hover:bg-red-50 px-3 py-1.5 rounded-md transition-all"

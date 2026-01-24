@@ -1,19 +1,26 @@
 import { useState, useEffect, useMemo } from "react";
 import { useCart } from "../context/CartContext";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 import { storeService, orderService, authService } from "../services/api"; 
 import { toast } from "sonner";
 
+// 🔥 FIX: Define Window interface for Razorpay
+declare global {
+  interface Window {
+    Razorpay: new (options: any) => any;
+  }
+}
+
 export default function Checkout() {
-  const { cartItems, getCartTotal, removePurchasedItems } = useCart();
+  const { cartItems, getCartTotal, clearCart } = useCart(); // Added clearCart
   const navigate = useNavigate();
   const cartTotal = getCartTotal();
 
   // --- STATE ---
   const [loadingConfig, setLoadingConfig] = useState(true);
   
-  // 🔥 FIX 1: Set defaults to 0 so nothing "wrong" shows up while loading
+  // Set defaults to 0 so nothing "wrong" shows up while loading
   const [config, setConfig] = useState({
     shipping_flat_rate: 0,
     shipping_free_above: 0,
@@ -42,7 +49,6 @@ export default function Checkout() {
     const init = async () => {
       try {
         const data = await storeService.getSiteConfig();
-        // Update state with whatever is in the Admin Panel
         setConfig({
           shipping_flat_rate: parseFloat(data.shipping_flat_rate) || 0,
           shipping_free_above: parseFloat(data.shipping_free_above) || 0,
@@ -66,9 +72,7 @@ export default function Checkout() {
 
   // --- 2. CALCULATIONS ---
   const calculations = useMemo(() => {
-    // Shipping Logic: 
-    // If shipping_flat_rate is 0 in Admin, shipping is always free.
-    // Otherwise, check if cart total > free_above limit.
+    // Shipping Logic
     const isFreeShipping = config.shipping_flat_rate === 0 || (config.shipping_free_above > 0 && cartTotal >= config.shipping_free_above);
     const shippingCost = isFreeShipping ? 0 : config.shipping_flat_rate;
     
@@ -79,7 +83,7 @@ export default function Checkout() {
 
     const taxableAmount = Math.max(0, cartTotal - discountAmount);
     
-    // Tax Logic: If rate is 0, tax is 0.
+    // Tax Logic
     const taxAmount = (taxableAmount * config.tax_rate_percentage) / 100;
     
     const finalTotal = taxableAmount + taxAmount + shippingCost;
@@ -117,36 +121,76 @@ export default function Checkout() {
     setIsPaying(true);
 
     try {
+        // 🔥 FIX 1: Send Product ID, Size, and Color
         const orderPayload = {
             ...formData,
             items: cartItems.map(item => ({
-                sku: item.id,
+                product_id: item.productId, // Use 'product_id' (Matches Backend)
                 quantity: item.quantity,
+                color: item.color,          // Required for variant lookup
+                size: item.size,            // Required for variant lookup
                 price: item.price
             }))
         };
         
+        // 1. Create Order on Backend
         const orderResp = await orderService.createOrder(orderPayload);
 
+        // 2. Open Razorpay Payment Window
         const options = {
             key: orderResp.key,
             amount: orderResp.amount,
             currency: "INR",
+            name: "Your Store Name",
+            description: "Order Payment",
             order_id: orderResp.razorpay_order_id,
-            handler: async (response: any) => {
-                await orderService.verifyPayment(response);
-                removePurchasedItems(cartItems.map(i => i.id));
-                toast.success("Order Placed Successfully!");
-                navigate("/user"); 
+            
+            // 🔥 FIX 2: Handle Success & Verify on Backend
+            handler: async function (response: any) {
+                try {
+                    const verifyPayload = {
+                        razorpay_order_id: response.razorpay_order_id,
+                        razorpay_payment_id: response.razorpay_payment_id,
+                        razorpay_signature: response.razorpay_signature
+                    };
+
+                    // Call backend to verify signature & mark as paid
+                    await orderService.verifyPayment(verifyPayload);
+                    
+                    toast.success("Order Placed Successfully!");
+                    
+                    // Clear Cart & Redirect
+                    clearCart();
+                    navigate("/user"); // Or navigate("/user")
+
+                } catch (error) {
+                    console.error("Verification failed", error);
+                    toast.error("Payment successful but verification failed. Please contact support.");
+                    navigate("/user");
+                }
+            },
+            prefill: {
+                name: `${formData.firstName} ${formData.lastName}`,
+                email: formData.email,
+                contact: formData.phone,
+            },
+            theme: {
+                color: "#1F2B5B",
+            },
+            modal: {
+                ondismiss: function() {
+                    setIsPaying(false);
+                    toast("Payment cancelled");
+                }
             }
         };
         
-        const rzp = new (window as any).Razorpay(options);
+        const rzp = new window.Razorpay(options);
         rzp.open();
 
     } catch (error) {
         console.error(error);
-        toast.error("Payment failed. Please try again.");
+        toast.error("Payment initiation failed. Please try again.");
     } finally {
         setIsPaying(false);
     }
@@ -197,7 +241,7 @@ export default function Checkout() {
                     <img src={item.image} className="w-16 h-16 rounded-md object-cover border" />
                     <div className="flex-1">
                         <p className="text-sm font-semibold">{item.name}</p>
-                        <p className="text-xs text-gray-500">Qty: {item.quantity}</p>
+                        <p className="text-xs text-gray-500">Qty: {item.quantity} | {item.size} | {item.color}</p>
                     </div>
                     <p className="text-sm font-semibold">₹{item.price * item.quantity}</p>
                   </div>
@@ -227,7 +271,6 @@ export default function Checkout() {
               <div className="border-t pt-4 space-y-2 text-sm">
                 <div className="flex justify-between"><span>Subtotal</span><span>₹{cartTotal.toLocaleString()}</span></div>
                 
-                {/* 🔥 FIX 2: Only show Shipping if > 0 or if explicitly FREE */}
                 <div className="flex justify-between">
                     <span>Shipping</span>
                     <span className={calculations.isFreeShipping ? "text-green-600" : ""}>
@@ -235,7 +278,6 @@ export default function Checkout() {
                     </span>
                 </div>
 
-                {/* 🔥 FIX 3: Only show Tax if > 0 */}
                 {calculations.taxAmount > 0 && (
                     <div className="flex justify-between">
                         <span>GST ({config.tax_rate_percentage}%)</span>

@@ -139,7 +139,7 @@ export const orderService = {
     return response.data;
   },
   verifyPayment: async (data: any) => {
-    const response = await api.post('/payments/verify/', data);
+    const response = await api.post("/orders/verify-payment/", data);
     return response.data;
   },
   getUserOrders: async () => {
