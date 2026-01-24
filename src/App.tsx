@@ -10,7 +10,7 @@ import ProductListing from './pages/ProductListing';
 import Login from './pages/Login'; // New Page
 import User from './pages/User'; // 👈 Import the User Page
 import ScrollToTop from './components/ScrollToTop'; // New Component
-
+import Checkout from "./pages/Checkout";
 function App() {
   return (
     <CartProvider>
@@ -28,7 +28,7 @@ function App() {
           {/* Helper routes for gender links */}
           <Route path="/men" element={<ProductListing />} />
           <Route path="/women" element={<ProductListing />} />
-
+          <Route path="/checkout" element={<Checkout />} />
         </Routes>
 
         <Footer />

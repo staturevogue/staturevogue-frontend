@@ -119,6 +119,18 @@ export const storeService = {
     const response = await api.post(`/store/products/${slug}/reviews/`, data);
     return response.data;
   },
+  validateCoupon: async (code: string, orderTotal: number) => {
+  const response = await api.post("/store/validate-coupon/", { 
+    code, 
+    order_total: orderTotal 
+  });
+  return response.data;
+},
+
+getSiteConfig: async () => {
+  const response = await api.get("/store/config/");
+  return response.data;
+},
 };
 
 export const orderService = {
