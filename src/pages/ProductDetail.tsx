@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { useParams, useNavigate, useLocation } from "react-router-dom"; // 🔥 Added useLocation
+import { useParams, useNavigate, useLocation } from "react-router-dom"; 
 import {
   Star, ChevronLeft, ChevronRight, Check, 
   Truck, RotateCcw, Shield, User, ShoppingBag, Loader2, PenSquare, Share2, X
@@ -7,12 +7,11 @@ import {
 import { useCart } from "../context/CartContext";
 import { storeService } from "../services/api"; 
 import { toast } from "sonner";
-import axios from "axios"; 
 
 export default function ProductDetail() {
   const { id: slug } = useParams();
   const navigate = useNavigate();
-  const location = useLocation(); // 🔥 Hook to read the state passed from Listing page
+  const location = useLocation(); 
   const { addToCart } = useCart();
   
   const [product, setProduct] = useState<any>(null);
@@ -59,6 +58,7 @@ export default function ProductDetail() {
     init();
   }, [slug]);
 
+  // ... (Keep displayImages, availableSizes, useEffects, handleAddToCart, handleBuyNow, handleShare logic exactly as is) ...
   const displayImages = useMemo(() => {
     if (!product) return [];
     const safeColor = (c: string) => c?.toLowerCase().trim();
@@ -135,6 +135,7 @@ export default function ProductDetail() {
         toast.error("Failed to copy link");
     }
   };
+  // ... (End of kept logic) ...
 
   const handleSubmitReview = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -142,25 +143,11 @@ export default function ProductDetail() {
 
     setIsSubmittingReview(true);
     try {
-        const token = localStorage.getItem("userToken") || 
-                      localStorage.getItem("access") || 
-                      localStorage.getItem("token"); 
-
-        if (!token) {
-            toast.error("You must be logged in to post a review.");
-            setIsSubmittingReview(false);
-            return;
-        }
-
-        await axios.post(`http://127.0.0.1:8000/api/store/products/${slug}/reviews/`, {
+        // 🔥 Use storeService from api.ts
+        await storeService.addReview(slug as string, {
             user_name: newReviewName,
             rating: newReviewRating,
             comment: newReviewComment,
-        }, {
-            headers: {
-                "Authorization": `Bearer ${token}`, 
-                "Content-Type": "application/json"
-            }
         });
 
         toast.success("Review submitted successfully!");
@@ -169,16 +156,21 @@ export default function ProductDetail() {
         setNewReviewName("");
         setNewReviewRating(5);
         
+        // Refresh reviews
         const updatedReviews = await storeService.getReviews(slug as string);
         setReviews(updatedReviews.results || updatedReviews);
+
     } catch (error: any) {
-        console.error("Review Error:", error.response?.data);
-        if (error.response?.status === 401) {
-             toast.error("Session expired. Please login again.");
-        } else if (error.response?.data?.non_field_errors) {
-            toast.error(error.response.data.non_field_errors[0]);
+        console.error("Review Error:", error);
+        
+        // 🔥 Handle the specific "Not Purchased" error from backend
+        if (error.response?.status === 400 && Array.isArray(error.response.data)) {
+             toast.error(error.response.data[0]); // "Verified Purchase Only..."
+        } else if (error.response?.status === 401) {
+             toast.error("Please log in to write a review.");
+             // navigate("/login"); // Optional: Auto redirect
         } else {
-            toast.error("Failed to submit review.");
+             toast.error("Failed to submit review. Have you purchased this item?");
         }
     } finally {
         setIsSubmittingReview(false);
@@ -195,10 +187,6 @@ export default function ProductDetail() {
   const showDiscount = product.originalPrice && Number(product.originalPrice) > displayPrice;
   const discountAmount = showDiscount ? Number(product.originalPrice) - displayPrice : 0;
 
-  // 🔥 INTELLIGENT BREADCRUMB LOGIC
-  // 1. Check if we came from a specific collection (state passed from ProductListing)
-  // 2. If yes, use that label and link.
-  // 3. If no, fall back to the product's primary category.
   const breadcrumbLabel = location.state?.breadcrumb?.label || product.category || "Products";
   const breadcrumbLink = location.state?.breadcrumb?.url 
       ? location.state.breadcrumb.url 
@@ -206,19 +194,17 @@ export default function ProductDetail() {
 
   return (
     <div className="min-h-screen bg-white pb-24 relative">
+      {/* ... (Keep the rest of your JSX exactly as it was) ... */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
         <div className="flex items-center text-xs text-gray-600">
           <span className="cursor-pointer hover:text-[#1F2B5B]" onClick={() => navigate('/')}>Home</span>
           <span className="mx-2">/</span>
-          
-          {/* 🔥 DYNAMIC LINK: Goes back to where you came from */}
           <span 
             className="cursor-pointer hover:text-[#1F2B5B] capitalize" 
             onClick={() => navigate(breadcrumbLink)}
           >
             {breadcrumbLabel}
           </span>
-          
           <span className="mx-2">/</span>
           <span className="font-medium text-gray-900 truncate max-w-[200px]">{product.name}</span>
         </div>
@@ -419,7 +405,9 @@ export default function ProductDetail() {
                                 <div className="flex flex-col gap-1 text-xs text-gray-500">
                                   <span>{review.created_at}</span>
                                   {review.purchased_variant && (
-                                    <span className="text-gray-400">Purchased: {review.purchased_variant}</span>
+                                    <span className="text-green-600 font-medium text-[10px] bg-green-50 px-2 py-0.5 rounded-full inline-block w-fit">
+                                      ✓ {review.purchased_variant}
+                                    </span>
                                   )}
                                 </div>
                             </div>
@@ -448,7 +436,7 @@ export default function ProductDetail() {
 
       {isReviewModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-            <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-6 relative">
+            <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-6 relative animate-in zoom-in-95">
                 <button onClick={() => setIsReviewModalOpen(false)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
                 <h3 className="text-lg font-bold text-gray-900 mb-4">Write a Review</h3>
                 <form onSubmit={handleSubmitReview}>
