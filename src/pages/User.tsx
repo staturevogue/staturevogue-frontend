@@ -1,23 +1,25 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom"; 
 import { 
-  Package, MapPin, LogOut, ArrowLeft, Loader2, ChevronDown, 
-  ChevronLeft, ChevronRight, Truck, CheckCircle, Clock, AlertCircle, 
-  Trash2, Star, Plus, XCircle, RefreshCw, RotateCcw
+  Package, MapPin, LogOut, Loader2, ChevronRight, 
+  Truck, CheckCircle, Clock, AlertCircle, Trash2, Star, Plus, 
+  XCircle, RefreshCw, RotateCcw, X, User, ChevronDown, Phone, Pencil,
+  UploadCloud, FileVideo, Copy
 } from "lucide-react";
 import { toast } from "sonner";
-import { orderService, authService, } from "../services/api";
-import api from "../services/api"; // ✅ Imported 'api' for direct calls
-
+import { orderService, authService,} from "../services/api";
+import api from "../services/api";
 // --- INTERFACES ---
 interface OrderItem {
   id: number;
-  product_id: number;
-  product_slug?: string; 
   product_name: string;
   variant_label: string;
   price: string;
   quantity: number;
+  product_slug?: string;
+  image?: string; 
+  status: string; // ✅ Item has its own status
+  exchange_coupon_code?: string; // ✅ Coupon per item
 }
 
 interface Order {
@@ -34,214 +36,85 @@ interface Order {
 interface SavedAddress {
   id: number;
   label: string;
+  first_name: string;
+  last_name: string;
   address: string;
-  apartment?: string;
+  apartment?: string; 
   city: string;
   state: string;
   zip_code: string;
   country: string;
   phone: string;
   is_default: boolean;
-  first_name?: string;
-  last_name?: string;
 }
+
+const RETURN_REASONS = [
+    "Size doesn't fit", "Quality not as expected", "Received wrong item",
+    "Damaged/Defective item", "Changed my mind", "Others"
+];
 
 const UserProfile = () => {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<'orders' | 'addresses'>('orders');
+  const [activeTab, setActiveTab] = useState<'profile' | 'orders' | 'addresses'>('profile');
   
-  // --- ORDER STATE ---
+  // Data State
+  const [userProfile, setUserProfile] = useState<any>(null);
   const [allOrders, setAllOrders] = useState<Order[]>([]);
-  const [loadingOrders, setLoadingOrders] = useState(false);
+  const [addresses, setAddresses] = useState<SavedAddress[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Pagination
   const [expandedOrderId, setExpandedOrderId] = useState<number | null>(null);
-  const [isAdmin, setIsAdmin] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const ORDERS_PER_PAGE = 5;
 
-  // --- ADDRESS STATE ---
-  const [addresses, setAddresses] = useState<SavedAddress[]>([]);
-  const [loadingAddresses, setLoadingAddresses] = useState(false);
+  // Address Form State
   const [showAddForm, setShowAddForm] = useState(false);
-  const [submittingAddress, setSubmittingAddress] = useState(false);
+  const [editingAddressId, setEditingAddressId] = useState<number | null>(null); 
   
-  const [newAddress, setNewAddress] = useState({
-    label: 'Home',
-    first_name: '',
-    last_name: '',
-    address: '',
-    apartment: '',
-    city: '',
-    state: 'Telangana',
-    zip_code: '',
-    country: 'India',
-    phone: '',
-    is_default: false,
+  const [addressForm, setAddressForm] = useState({ 
+      label: 'Home', first_name: '', last_name: '', 
+      address: '', apartment: '', city: '', state: 'Telangana', 
+      zip_code: '', country: 'India', phone: '', is_default: false 
   });
+  
+  const [submittingAddress, setSubmittingAddress] = useState(false);
 
-  // --- 1. AUTH CHECK ---
+  // Action Modal State
+  const [actionModalOpen, setActionModalOpen] = useState(false);
+  // ✅ Tracks the ITEM ID now, not Order ID
+  const [selectedItemForAction, setSelectedItemForAction] = useState<number | null>(null); 
+  const [actionType, setActionType] = useState<'return' | 'exchange'>('return');
+  const [selectedReason, setSelectedReason] = useState("");
+  const [proofVideo, setProofVideo] = useState<File | null>(null);
+  const [isSubmittingAction, setIsSubmittingAction] = useState(false);
+
+  // --- INITIAL DATA FETCH ---
   useEffect(() => {
     const token = localStorage.getItem("userToken");
-    if (!token) {
-      navigate("/login");
-    }
-  }, [navigate]);
+    if (!token) { navigate("/login"); return; }
 
-  // --- 2. CHECK ADMIN ROLE & FETCH DATA ---
-  useEffect(() => {
-    const token = localStorage.getItem("userToken");
-    if (!token) return;
-
-    const initData = async () => {
+    const fetchData = async () => {
       try {
-        const user = await authService.getProfile();
-        if (user.is_staff || user.is_superuser) {
-          setIsAdmin(true);
-        }
-        if (activeTab === 'orders') fetchOrders();
-        if (activeTab === 'addresses') fetchAddresses();
+        const [profile, orders, addr] = await Promise.all([
+            authService.getProfile(),
+            orderService.getUserOrders(),
+            authService.getSavedAddresses()
+        ]);
+        
+        setUserProfile(profile);
+        setAllOrders(Array.isArray(orders) ? orders : orders.results || []);
+        setAddresses(Array.isArray(addr) ? addr : addr.results || []);
       } catch (e) {
-        console.error("Failed to load user profile", e);
+        console.error("Failed to load user data", e);
+      } finally {
+        setLoading(false);
       }
     };
-    initData();
-  }, [activeTab]);
+    fetchData();
+  }, [navigate]);
 
-  // --- ORDER FUNCTIONS ---
-  const fetchOrders = async () => {
-    try {
-      setLoadingOrders(true);
-      const data = await orderService.getUserOrders();
-      const ordersList = Array.isArray(data) ? data : data.results || [];
-      setAllOrders(ordersList);
-      setCurrentPage(1); 
-    } catch (error: any) {
-      console.error("Failed to load orders", error);
-      if (error?.response?.status !== 401) {
-        toast.error("Could not load orders");
-      }
-      setAllOrders([]);
-    } finally {
-      setLoadingOrders(false);
-    }
-  };
-
-  const updateOrderStatus = async (orderId: number, newStatus: string) => {
-    try {
-      await orderService.updateOrderStatus(orderId, newStatus);
-      toast.success("Order status updated");
-      setAllOrders(prevOrders => 
-        prevOrders.map(order => 
-          order.id === orderId ? { ...order, order_status: newStatus } : order
-        )
-      );
-    } catch (error: any) {
-      console.error(error);
-      toast.error("Failed to update status");
-    }
-  };
-
-  // ✅ NEW: Handle Cancel Order
-  const handleCancelOrder = async (orderId: number) => {
-    if (!window.confirm("Are you sure you want to cancel? If paid, a refund will be initiated instantly.")) return;
-    
-    try {
-      // Calling the backend API endpoint we created
-      await api.post(`/orders/${orderId}/cancel/`);
-      toast.success("Order cancelled successfully");
-      fetchOrders(); // Refresh list to show new status
-    } catch (err: any) {
-      toast.error(err?.response?.data?.error || "Failed to cancel order");
-    }
-  };
-
-  // ✅ NEW: Handle Return/Exchange
-  const handleReturnExchange = async (orderId: number, type: 'return' | 'exchange') => {
-    try {
-        await api.post(`/orders/${orderId}/request-action/`, { type });
-        toast.success(`${type === 'return' ? 'Return' : 'Exchange'} request submitted.`);
-        fetchOrders();
-    } catch (err: any) {
-        toast.error(err.response?.data?.error || "Request failed");
-    }
-  };
-
-  // --- ADDRESS FUNCTIONS ---
-  const fetchAddresses = async () => {
-    setLoadingAddresses(true);
-    try {
-      const data = await authService.getSavedAddresses();
-      const list = Array.isArray(data) ? data : data.results || [];
-      setAddresses(list);
-    } catch (err: any) {
-      if (err?.response?.status !== 401) {
-        toast.error("Could not load saved addresses");
-      }
-      setAddresses([]);
-    } finally {
-      setLoadingAddresses(false);
-    }
-  };
-
-  const handleAddressInput = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    const { name, value, type } = e.target as HTMLInputElement;
-    setNewAddress(prev => ({
-      ...prev,
-      [name]: type === 'checkbox' ? (e.target as HTMLInputElement).checked : value
-    }));
-  };
-
-  const handleAddAddress = async (e?: React.FormEvent) => {
-    e?.preventDefault();
-    if (addresses.length >= 3) {
-      toast.error("You can save up to 3 addresses only.");
-      return;
-    }
-    if (!newAddress.address || !newAddress.city || !newAddress.zip_code || !newAddress.phone) {
-      toast.error("Please fill required fields.");
-      return;
-    }
-
-    try {
-      setSubmittingAddress(true);
-      await authService.saveAddress(newAddress);
-      toast.success("Address saved successfully");
-      setShowAddForm(false);
-      setNewAddress({
-        label: 'Home',
-        first_name: '', last_name: '', 
-        address: '', apartment: '', 
-        city: '', state: 'Telangana', 
-        zip_code: '', country: 'India', 
-        phone: '', is_default: false,
-      });
-      fetchAddresses();
-    } catch (err: any) {
-      toast.error(err?.response?.data?.[0] || "Failed to save address");
-    } finally {
-      setSubmittingAddress(false);
-    }
-  };
-
-  const handleDeleteAddress = async (id: number) => {
-    try {
-      await authService.deleteAddress(id);
-      toast.success("Address deleted");
-      fetchAddresses();
-    } catch (err: any) {
-      toast.error("Failed to delete address");
-    }
-  };
-
-  const handleSetDefault = async (id: number) => {
-    try {
-      await authService.setDefaultAddress(id);
-      toast.success("Default address updated");
-      fetchAddresses();
-    } catch (err: any) {
-      toast.error("Failed to set default");
-    }
-  };
-
+  // --- HANDLERS ---
   const handleLogout = () => {
     localStorage.removeItem("userToken");
     localStorage.removeItem('cart'); 
@@ -249,434 +122,496 @@ const UserProfile = () => {
     navigate("/login"); 
   };
 
-  const formatDate = (dateString: string) => {
+  const refreshOrders = async () => {
+      const updated = await orderService.getUserOrders();
+      setAllOrders(Array.isArray(updated) ? updated : updated.results);
+  };
+
+  const handleCancelOrder = async (orderId: number) => {
+    if (!window.confirm("Are you sure? Refund will be initiated.")) return;
     try {
-      const date = new Date(dateString);
-      return date.toLocaleDateString('en-IN', {
-        year: 'numeric', month: 'short', day: 'numeric',
+      await api.post(`/orders/${orderId}/cancel/`);
+      toast.success("Order cancelled");
+      refreshOrders();
+    } catch (err: any) { toast.error("Failed to cancel"); }
+  };
+
+  // ✅ Open Modal with ITEM ID
+  const openActionModal = (itemId: number, type: 'return' | 'exchange') => {
+      setSelectedItemForAction(itemId);
+      setActionType(type);
+      setSelectedReason("");
+      setProofVideo(null); 
+      setActionModalOpen(true);
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      if (e.target.files && e.target.files[0]) {
+          setProofVideo(e.target.files[0]);
+      }
+  };
+
+  const handleSubmitAction = async () => {
+      if (!selectedReason || !selectedItemForAction) {
+          toast.error("Please select a reason.");
+          return;
+      }
+      if (!proofVideo) {
+          toast.error("Please upload an unboxing video.");
+          return;
+      }
+
+      setIsSubmittingAction(true);
+      try {
+          const formData = new FormData();
+          formData.append('type', actionType);
+          formData.append('reason', selectedReason);
+          formData.append('video', proofVideo); 
+
+          // ✅ Correct API: /orders/items/<ITEM_ID>/request-action/
+          await api.post(`/orders/items/${selectedItemForAction}/request-action/`, formData, {
+              headers: { 'Content-Type': 'multipart/form-data' }
+          });
+
+          toast.success("Request submitted successfully!");
+          setActionModalOpen(false);
+          refreshOrders();
+      } catch (err: any) { 
+          toast.error(err.response?.data?.error || "Request failed"); 
+      } finally { 
+          setIsSubmittingAction(false); 
+      }
+  };
+
+  const copyToClipboard = (text: string) => {
+      navigator.clipboard.writeText(text);
+      toast.success("Coupon code copied!");
+  };
+
+  // Address Handlers
+  const handleEditAddress = (addr: SavedAddress) => {
+      setAddressForm({
+          label: addr.label, first_name: addr.first_name, last_name: addr.last_name,
+          address: addr.address, apartment: addr.apartment || '', city: addr.city, state: addr.state,
+          zip_code: addr.zip_code, country: addr.country, phone: addr.phone, is_default: addr.is_default
       });
-    } catch { return dateString; }
+      setEditingAddressId(addr.id);
+      setShowAddForm(true);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const filteredOrders = isAdmin ? allOrders : allOrders; 
-
-  const totalPages = Math.ceil(filteredOrders.length / ORDERS_PER_PAGE);
-  const startIndex = (currentPage - 1) * ORDERS_PER_PAGE;
-  const endIndex = startIndex + ORDERS_PER_PAGE;
-  const paginatedOrders = filteredOrders.slice(startIndex, endIndex);
-
-  const goToPage = (page: number) => {
-    const pageNum = Math.max(1, Math.min(page, totalPages));
-    setCurrentPage(pageNum);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+  const resetForm = () => {
+      setAddressForm({ label: 'Home', first_name: '', last_name: '', address: '', apartment: '', city: '', state: 'Telangana', zip_code: '', country: 'India', phone: '', is_default: false });
+      setEditingAddressId(null);
+      setShowAddForm(false);
   };
 
-  // ✅ UPDATED: Status Config for new statuses
-  const getStatusConfig = (status: string) => {
-    switch (status) {
-      case 'Delivered': return { icon: <CheckCircle className="w-5 h-5" />, colorClass: 'bg-green-100 text-green-700 border-green-200', label: 'Delivered' };
-      case 'Shipped': return { icon: <Truck className="w-5 h-5" />, colorClass: 'bg-blue-100 text-blue-700 border-blue-200', label: 'Shipped' };
-      case 'Processing': return { icon: <Clock className="w-5 h-5" />, colorClass: 'bg-amber-100 text-amber-700 border-amber-200', label: 'Processing' };
-      case 'Cancelled': return { icon: <XCircle className="w-5 h-5" />, colorClass: 'bg-red-100 text-red-700 border-red-200', label: 'Cancelled' };
-      case 'Refunded': return { icon: <RefreshCw className="w-5 h-5" />, colorClass: 'bg-purple-100 text-purple-700 border-purple-200', label: 'Refunded' };
-      case 'Refund Initiated': return { icon: <RefreshCw className="w-5 h-5" />, colorClass: 'bg-purple-100 text-purple-700 border-purple-200', label: 'Refund Initiated' };
-      case 'Return Requested': return { icon: <AlertCircle className="w-5 h-5" />, colorClass: 'bg-orange-100 text-orange-700 border-orange-200', label: 'Return Requested' };
-      case 'Exchange Requested': return { icon: <AlertCircle className="w-5 h-5" />, colorClass: 'bg-indigo-100 text-indigo-700 border-indigo-200', label: 'Exchange Requested' };
-      default: return { icon: <Package className="w-5 h-5" />, colorClass: 'bg-gray-100 text-gray-700 border-gray-200', label: status };
-    }
+  const handleSaveAddress = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmittingAddress(true);
+    try {
+      if (editingAddressId) {
+          await api.put(`/auth/addresses/${editingAddressId}/`, addressForm);
+          toast.success("Address updated successfully");
+      } else {
+          await authService.saveAddress(addressForm);
+          toast.success("Address saved successfully");
+      }
+      resetForm();
+      const updated = await authService.getSavedAddresses();
+      setAddresses(updated);
+    } catch(e) { toast.error("Failed to save address"); } finally { setSubmittingAddress(false); }
   };
 
-  return (
-    <div className="min-h-screen bg-gray-50 pt-24 pb-12">
-      <div className="container mx-auto px-4 md:px-8 max-w-6xl">
-        
-        {/* Back Button */}
-        <button onClick={() => navigate("/")} className="flex items-center gap-2 text-gray-500 hover:text-[#1F2B5B] mb-6 transition-colors group">
-          <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" /> Back to Home
-        </button>
+  const handleDeleteAddress = async (id: number) => {
+      if(!window.confirm("Delete this address?")) return;
+      try {
+        await authService.deleteAddress(id);
+        setAddresses(addresses.filter(a => a.id !== id));
+        toast.success("Address deleted");
+      } catch(e) { toast.error("Failed to delete"); }
+  };
 
-        {/* Header Section */}
-        <div className="flex flex-col md:flex-row justify-between items-end mb-8 border-b pb-6">
-          <div>
-            <h1 className="text-3xl font-bold text-[#1F2B5B]">My Account</h1>
-            <p className="text-gray-500 mt-1">Manage your orders and personal details</p>
-          </div>
-          <button onClick={handleLogout} className="flex items-center gap-2 text-red-600 hover:text-red-700 font-medium mt-4 md:mt-0 hover:bg-red-50 px-4 py-2 rounded-lg transition-colors">
-            <LogOut className="w-4 h-4" /> Logout
-          </button>
-        </div>
+  const handleSetDefault = async (id: number) => {
+      try {
+        await authService.setDefaultAddress(id);
+        const updated = await authService.getSavedAddresses();
+        setAddresses(updated);
+        toast.success("Default updated");
+      } catch(e) { toast.error("Failed"); }
+  };
 
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-            
-          {/* Sidebar Navigation */}
-          <div className="bg-white p-4 rounded-xl shadow-sm h-fit border border-gray-100">
-            <button 
-              onClick={() => setActiveTab('orders')} 
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left mb-2 transition-all font-medium ${
-                activeTab === 'orders' 
-                  ? 'bg-[#1F2B5B] text-white shadow-md' 
-                  : 'hover:bg-gray-50 text-gray-600'
-              }`}
-            >
-              <Package className="w-5 h-5" /> Orders
-            </button>
-            <button 
-              onClick={() => setActiveTab('addresses')} 
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left transition-all font-medium ${
-                activeTab === 'addresses' 
-                  ? 'bg-[#1F2B5B] text-white shadow-md' 
-                  : 'hover:bg-gray-50 text-gray-600'
-              }`}
-            >
-              <MapPin className="w-5 h-5" /> Addresses
-            </button>
-          </div>
+  const getStatusColor = (status: string) => {
+      switch(status) {
+          case 'Delivered': 
+          case 'Exchange Approved': 
+          case 'Return Approved': return 'bg-green-100 text-green-700 border-green-200';
+          
+          case 'Cancelled': 
+          case 'Return Rejected':
+          case 'Exchange Rejected': return 'bg-red-100 text-red-700 border-red-200';
+          
+          case 'Refunded': return 'bg-purple-100 text-purple-700 border-purple-200';
+          case 'Processing': return 'bg-yellow-100 text-yellow-700 border-yellow-200';
+          
+          case 'Return Requested':
+          case 'Exchange Requested': return 'bg-orange-100 text-orange-700 border-orange-200';
+          
+          default: return 'bg-blue-100 text-blue-700 border-blue-200';
+      }
+  };
 
-          {/* Main Content Area */}
-          <div className="lg:col-span-3">
-            
-            {/* --- ORDERS TAB --- */}
-            {activeTab === 'orders' && (
-              <div className="space-y-6 animate-fade-in">
-                <div className="flex justify-between items-center mb-2">
-                  <h2 className="text-xl font-bold text-[#1F2B5B]">Order History</h2>
-                  {filteredOrders.length > 0 && (
-                    <span className="text-sm text-gray-500">
-                      Showing {startIndex + 1}–{Math.min(endIndex, filteredOrders.length)} of {filteredOrders.length}
-                    </span>
-                  )}
+  // --- RENDER CONTENT ---
+  const renderContent = () => {
+    switch (activeTab) {
+        case 'profile':
+            return (
+                <div className="space-y-8 animate-fade-in">
+                    <div>
+                        <h2 className="text-2xl font-bold text-[#1F2B5B]">My Profile</h2>
+                        <p className="text-gray-500">Manage your personal information</p>
+                    </div>
+                    <div className="bg-gray-50 p-6 rounded-xl border border-gray-100 max-w-2xl">
+                        <div className="grid gap-6">
+                            <div>
+                                <label className="block text-xs font-bold text-gray-500 uppercase mb-1.5">Full Name</label>
+                                <div className="p-3 bg-white border border-gray-200 rounded-lg font-medium text-gray-900">
+                                    {userProfile?.first_name} {userProfile?.last_name}
+                                </div>
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-gray-500 uppercase mb-1.5">Email Address</label>
+                                <div className="p-3 bg-white border border-gray-200 rounded-lg font-medium text-gray-900 flex justify-between items-center">
+                                    {userProfile?.email}
+                                    <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full font-bold">Verified</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-                    
-                {loadingOrders ? (
-                  <div className="flex justify-center py-12">
-                    <Loader2 className="w-8 h-8 animate-spin text-[#1F2B5B]" />
-                  </div>
-                ) : paginatedOrders.length === 0 ? (
-                  <div className="text-center py-12 bg-white rounded-xl border border-dashed border-gray-300">
-                    <Package className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                    <p className="text-gray-500">No orders found yet.</p>
-                    <button onClick={() => navigate("/all-products")} className="text-[#1F2B5B] underline mt-2 font-medium hover:text-[#F4C430] transition-colors">
-                      Start Shopping
-                    </button>
-                  </div>
-                ) : (
-                  <>
-                    <div className="space-y-6">
-                      {paginatedOrders.map((order) => {
-                        const statusConfig = getStatusConfig(order.order_status);
-                        // ✅ Logic to show actions
-                        const canCancel = ['Processing', 'Pending'].includes(order.order_status);
-                        const canReturn = order.order_status === 'Delivered';
+            );
 
-                        return (
-                          <div key={order.id} className="bg-white rounded-lg border border-gray-200 overflow-hidden shadow-sm hover:shadow-md transition-shadow">
-                            
-                            {/* Order Header */}
-                            <div className="bg-gray-50 px-6 py-4 border-b border-gray-200 flex flex-wrap gap-y-4 justify-between items-center text-sm">
-                                <div className="flex gap-8">
-                                    <div>
-                                        <p className="text-xs text-gray-500 uppercase font-medium">Order Placed</p>
-                                        <p className="text-gray-900 font-medium">{formatDate(order.created_at)}</p>
-                                    </div>
-                                    <div>
-                                        <p className="text-xs text-gray-500 uppercase font-medium">Total</p>
-                                        <p className="text-gray-900 font-medium">
-                                            {new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(parseFloat(order.total_amount))}
-                                        </p>
-                                    </div>
-                                    <div className="hidden md:block">
-                                        <p className="text-xs text-gray-500 uppercase font-medium">Ship To</p>
-                                        <div className="relative group cursor-help">
-                                            <p className="text-[#1F2B5B] font-medium truncate max-w-[150px]">View Address</p>
-                                            <div className="absolute left-0 top-full mt-2 hidden group-hover:block bg-gray-800 text-white text-xs p-3 rounded z-10 w-64 shadow-xl whitespace-pre-wrap leading-relaxed">
-                                                {order.shipping_address}
+        case 'orders':
+            const startIndex = (currentPage - 1) * ORDERS_PER_PAGE;
+            const paginatedOrders = allOrders.slice(startIndex, startIndex + ORDERS_PER_PAGE);
+            const totalPages = Math.ceil(allOrders.length / ORDERS_PER_PAGE);
+
+            return (
+                <div className="space-y-6 animate-fade-in">
+                    <div className="flex justify-between items-center mb-2">
+                        <h2 className="text-2xl font-bold text-[#1F2B5B]">My Orders</h2>
+                        <span className="text-sm text-gray-500">Showing {allOrders.length} orders</span>
+                    </div>
+
+                    {allOrders.length === 0 ? (
+                        <div className="text-center py-12 bg-gray-50 rounded-xl border border-dashed border-gray-300">
+                            <Package className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                            <p className="text-gray-500">No orders placed yet.</p>
+                        </div>
+                    ) : (
+                        <div className="space-y-4">
+                            {paginatedOrders.map((order, idx) => {
+                                // Order-level cancel (only if processing)
+                                const canCancelOrder = ['Processing', 'Pending'].includes(order.order_status);
+                                
+                                const globalIndex = startIndex + idx;
+                                const userOrderNumber = allOrders.length - globalIndex;
+                                const isExpanded = expandedOrderId === order.id;
+
+                                return (
+                                    <div key={order.id} className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-shadow">
+                                        {/* Header */}
+                                        <div className="bg-gray-50/50 p-4 border-b border-gray-100 flex flex-wrap justify-between items-center gap-4">
+                                            <div>
+                                                <p className="font-bold text-[#1F2B5B] text-lg">Order #{userOrderNumber}</p>
+                                                <p className="text-xs text-gray-500 mt-1">
+                                                    Placed on {new Date(order.created_at).toLocaleDateString('en-IN', { year: 'numeric', month: 'short', day: 'numeric' })}
+                                                </p>
+                                            </div>
+                                            <div className="flex items-center gap-3">
+                                                <span className="font-bold text-gray-900">₹{parseFloat(order.total_amount).toLocaleString()}</span>
+                                                <span className={`px-3 py-1 text-xs font-bold rounded-full border ${getStatusColor(order.order_status)}`}>
+                                                    {order.order_status}
+                                                </span>
+                                            </div>
+                                        </div>
+
+                                        {/* Content */}
+                                        <div className="p-4">
+                                            
+                                            {/* ITEMS LIST (With Actions) */}
+                                            {order.items.slice(0, isExpanded ? undefined : 1).map((item, i) => {
+                                                const productUrl = item.product_slug ? `/product/${item.product_slug}` : "#";
+                                                const isDelivered = order.order_status === 'Delivered';
+                                                
+                                                // ✅ Item-Level Action Logic
+                                                const canAction = isDelivered && item.status === 'Ordered'; 
+
+                                                return (
+                                                    <div key={i} className="flex flex-col gap-3 py-3 border-b border-gray-50 last:border-0">
+                                                        <div className="flex gap-4 items-start">
+                                                            {/* Image & Link */}
+                                                            <Link to={productUrl} className="w-16 h-16 bg-gray-100 rounded-md overflow-hidden flex-shrink-0 border border-gray-200 block">
+                                                                {item.image ? (
+                                                                    <img src={item.image} alt={item.product_name} className="w-full h-full object-cover" />
+                                                                ) : (
+                                                                    <div className="w-full h-full flex items-center justify-center text-gray-400">
+                                                                        <Package className="w-6 h-6" />
+                                                                    </div>
+                                                                )}
+                                                            </Link>
+
+                                                            <div className="flex-1">
+                                                                <Link to={productUrl} className="font-bold text-gray-800 text-sm hover:text-[#1F2B5B] hover:underline block mb-1">
+                                                                    {item.product_name}
+                                                                </Link>
+                                                                <p className="text-xs text-gray-500">{item.variant_label} | Qty: {item.quantity}</p>
+                                                                <p className="text-xs font-medium text-gray-900 mt-1">₹{parseFloat(item.price).toLocaleString()}</p>
+                                                                
+                                                                {/* ✅ ITEM STATUS BADGE */}
+                                                                {item.status !== 'Ordered' && (
+                                                                    <span className={`inline-block mt-2 text-[10px] px-2 py-0.5 rounded font-bold uppercase tracking-wide 
+                                                                        ${item.status.includes('Approved') ? 'bg-green-100 text-green-700' : 
+                                                                          item.status.includes('Rejected') ? 'bg-red-100 text-red-700' : 
+                                                                          item.status.includes('Requested') ? 'bg-orange-100 text-orange-700' : 'bg-gray-100'}`}>
+                                                                        {item.status}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        </div>
+
+                                                        {/* ✅ ACTION BUTTONS (Per Item) */}
+                                                        {canAction && (
+                                                            <div className="flex gap-2 justify-end">
+                                                                <button onClick={() => openActionModal(item.id, 'return')} className="text-xs font-bold text-orange-600 hover:bg-orange-50 px-3 py-1.5 rounded border border-orange-100 transition-colors">
+                                                                    Return Item
+                                                                </button>
+                                                                <button onClick={() => openActionModal(item.id, 'exchange')} className="text-xs font-bold text-blue-600 hover:bg-blue-50 px-3 py-1.5 rounded border border-blue-100 transition-colors">
+                                                                    Exchange Item
+                                                                </button>
+                                                            </div>
+                                                        )}
+
+                                                        {/* ✅ COUPON DISPLAY (Per Item) */}
+                                                        {item.status === 'Exchange Approved' && item.exchange_coupon_code && (
+                                                            <div className="bg-green-50 border border-green-200 p-3 rounded-lg flex justify-between items-center gap-2 animate-in fade-in">
+                                                                <div>
+                                                                    <p className="text-xs font-bold text-green-800">Exchange Approved!</p>
+                                                                    <p className="text-[10px] text-green-600">Use code for free replacement.</p>
+                                                                </div>
+                                                                <div className="flex items-center gap-2 bg-white px-3 py-1 rounded border border-green-200 cursor-pointer hover:bg-green-50 transition-colors" onClick={() => copyToClipboard(item.exchange_coupon_code!)}>
+                                                                    <code className="text-sm font-bold text-green-700">{item.exchange_coupon_code}</code>
+                                                                    <Copy className="w-3 h-3 text-green-500" />
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })}
+
+                                            {/* EXPANDED DETAILS (Address & Phone) */}
+                                            {isExpanded && (
+                                                <div className="mt-4 bg-gray-50 p-4 rounded-lg border border-gray-200 animate-in slide-in-from-top-2 duration-300">
+                                                    <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">Delivery Details</h4>
+                                                    <div className="flex flex-col sm:flex-row gap-6">
+                                                        <div className="flex gap-3">
+                                                            <MapPin className="w-4 h-4 text-[#1F2B5B] mt-0.5" />
+                                                            <div>
+                                                                <p className="text-xs text-gray-500 mb-1">Shipping Address</p>
+                                                                <p className="text-sm text-gray-800 whitespace-pre-line leading-relaxed">{order.shipping_address}</p>
+                                                            </div>
+                                                        </div>
+                                                        <div className="flex gap-3">
+                                                            <Phone className="w-4 h-4 text-[#1F2B5B] mt-0.5" />
+                                                            <div>
+                                                                <p className="text-xs text-gray-500 mb-1">Contact Number</p>
+                                                                <p className="text-sm font-medium text-gray-800">{order.phone}</p>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            <div className="mt-4 pt-2 flex flex-wrap justify-between items-center gap-4">
+                                                <button 
+                                                    onClick={() => setExpandedOrderId(isExpanded ? null : order.id)}
+                                                    className="flex items-center gap-1 text-sm font-bold text-[#1F2B5B] hover:text-[#F4C430] transition-colors"
+                                                >
+                                                    {isExpanded ? 'Hide Details' : 'View Order Details'}
+                                                    <ChevronDown className={`w-4 h-4 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                                                </button>
+
+                                                {/* Global Order Cancel (Only if processing) */}
+                                                {canCancelOrder && (
+                                                    <div className="flex gap-3">
+                                                        <button onClick={() => handleCancelOrder(order.id)} className="flex items-center gap-1 text-xs font-bold text-red-600 hover:bg-red-50 px-3 py-2 rounded-md border border-red-100 transition-colors">
+                                                            <XCircle className="w-3 h-3" /> Cancel Order
+                                                        </button>
+                                                    </div>
+                                                )}
                                             </div>
                                         </div>
                                     </div>
+                                );
+                            })}
+                            
+                            {totalPages > 1 && (
+                                <div className="flex justify-center gap-2 mt-6">
+                                    <button disabled={currentPage===1} onClick={() => setCurrentPage(p=>p-1)} className="px-3 py-1 border rounded disabled:opacity-50 hover:bg-gray-50 text-sm">Prev</button>
+                                    <span className="px-3 py-1 bg-[#1F2B5B] text-white rounded text-sm font-bold">{currentPage}</span>
+                                    <button disabled={currentPage===totalPages} onClick={() => setCurrentPage(p=>p+1)} className="px-3 py-1 border rounded disabled:opacity-50 hover:bg-gray-50 text-sm">Next</button>
                                 </div>
-                                <div>
-                                    <div className="flex justify-end gap-2 text-xs font-medium">
-                                        {order.payment_status === 'Paid' ? (
-                                            <span className="text-green-600 bg-green-50 px-2 py-1 rounded">Payment Paid</span>
-                                        ) : order.payment_status === 'Refunded' ? (
-                                            <span className="text-purple-600 bg-purple-50 px-2 py-1 rounded">Refunded</span>
-                                        ) : (
-                                            <span className="text-orange-600 bg-orange-50 px-2 py-1 rounded">Payment Pending</span>
-                                        )}
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Order Body */}
-                            <div className="p-6 cursor-pointer" onClick={(e) => {
-                                if ((e.target as HTMLElement).tagName === 'SELECT') return;
-                                if ((e.target as HTMLElement).tagName === 'BUTTON') return; // Don't expand if button clicked
-                                setExpandedOrderId(expandedOrderId === order.id ? null : order.id);
-                            }}>
-                              <div className="flex flex-col md:flex-row gap-6">
-                                <div className="flex-1">
-                                    <div className="space-y-4">
-                                        {order.items.slice(0, expandedOrderId === order.id ? undefined : 2).map((item, idx) => {
-                                            const finalSlug = item.product_slug 
-                                                ? item.product_slug 
-                                                : item.product_name.toLowerCase().replace(/\s+/g, '-').replace(/[^\w-]+/g, '');
-                                            return (
-                                                <div key={idx} className="flex gap-4 items-start group">
-                                                    <div className="pt-1 w-full">
-                                                        <Link 
-                                                            to={`/product/${finalSlug}`} 
-                                                            className="font-medium text-lg text-gray-900 hover:text-[#1F2B5B] transition-colors block leading-tight"
-                                                            onClick={(e) => e.stopPropagation()}
-                                                        >
-                                                            {item.product_name}
-                                                        </Link>
-                                                        <div className="flex items-center gap-3 text-sm text-gray-500 mt-1">
-                                                            <span className="bg-gray-100 px-2 py-0.5 rounded text-xs text-gray-700 border border-gray-200">{item.variant_label}</span>
-                                                            <span>Qty: {item.quantity}</span>
-                                                        </div>
-                                                        <p className="text-sm font-bold text-gray-900 mt-2">
-                                                            {new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(parseFloat(item.price))}
-                                                        </p>
-                                                    </div>
-                                                </div>
-                                            );
-                                        })}
-                                        {order.items.length > 2 && expandedOrderId !== order.id && (
-                                            <p className="text-sm text-[#1F2B5B] font-medium mt-2">+ {order.items.length - 2} more items...</p>
-                                        )}
-                                    </div>
-                                </div>
-
-                                <div className="md:w-1/3 flex flex-col items-start md:items-end justify-center gap-4 border-t md:border-t-0 md:border-l border-gray-100 pt-4 md:pt-0 md:pl-6">
-                                    
-                                    {/* Status Badge */}
-                                    <div className={`flex items-center gap-2 px-4 py-2 rounded-full border ${statusConfig.colorClass}`}>
-                                        {statusConfig.icon}
-                                        <span className="font-semibold text-sm">{statusConfig.label}</span>
-                                    </div>
-
-                                    {/* ✅ ACTION BUTTONS */}
-                                    
-                                    {/* Cancel Button */}
-                                    {canCancel && (
-                                        <button 
-                                            onClick={(e) => { e.stopPropagation(); handleCancelOrder(order.id); }}
-                                            className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-red-700 bg-red-50 border border-red-200 rounded-md hover:bg-red-100 transition-colors"
-                                        >
-                                            <XCircle className="w-4 h-4" /> Cancel Order
-                                        </button>
-                                    )}
-
-                                    {/* Return/Exchange Buttons */}
-                                    {canReturn && (
-                                        <div className="flex gap-2">
-                                            <button 
-                                                onClick={(e) => { e.stopPropagation(); handleReturnExchange(order.id, 'return'); }}
-                                                className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-orange-700 bg-orange-50 border border-orange-200 rounded-md hover:bg-orange-100 transition-colors"
-                                            >
-                                                <RotateCcw className="w-3 h-3" /> Return
-                                            </button>
-                                            <button 
-                                                onClick={(e) => { e.stopPropagation(); handleReturnExchange(order.id, 'exchange'); }}
-                                                className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-md hover:bg-blue-100 transition-colors"
-                                            >
-                                                <RefreshCw className="w-3 h-3" /> Exchange
-                                            </button>
-                                        </div>
-                                    )}
-
-                                    {isAdmin && (
-                                        <div className="w-full mt-2">
-                                            <label className="text-xs text-gray-500 font-medium block mb-1">Update Status (Admin)</label>
-                                            <select
-                                                value={order.order_status}
-                                                onChange={(e) => updateOrderStatus(order.id, e.target.value)}
-                                                onClick={(e) => e.stopPropagation()}
-                                                className="w-full border border-gray-300 rounded-md text-sm py-1.5 px-2 bg-white hover:border-[#1F2B5B] cursor-pointer focus:ring-1 focus:ring-[#1F2B5B] focus:outline-none"
-                                            >
-                                                <option value="Processing">Processing</option>
-                                                <option value="Shipped">Shipped</option>
-                                                <option value="Delivered">Delivered</option>
-                                                <option value="Cancelled">Cancelled</option>
-                                                <option value="Refunded">Refunded</option>
-                                            </select>
-                                        </div>
-                                    )}
-                                    <div className="flex items-center gap-1 text-[#1F2B5B] text-sm font-medium hover:text-[#F4C430] mt-2 transition-colors">
-                                        {expandedOrderId === order.id ? 'Hide Details' : 'View Order Details'}
-                                        <ChevronDown className={`w-4 h-4 transition-transform ${expandedOrderId === order.id ? 'rotate-180' : ''}`} />
-                                    </div>
-                                </div>
-                              </div>
-                            </div>
-
-                            {/* Expanded Details */}
-                            {expandedOrderId === order.id && (
-                              <div className="border-t border-gray-200 bg-gray-50 p-6 animate-in slide-in-from-top-2 duration-200">
-                                <div>
-                                    <h4 className="font-bold text-[#1F2B5B] mb-4 text-sm flex items-center gap-2">
-                                        <MapPin className="w-4 h-4" /> Shipping Details
-                                    </h4>
-                                    <div className="bg-white p-4 rounded-md border border-gray-200 text-sm shadow-sm max-w-lg">
-                                        <p className="text-gray-700 whitespace-pre-wrap leading-relaxed">{order.shipping_address}</p>
-                                        <p className="text-gray-500 mt-3 pt-3 border-t border-gray-100">Phone: <span className="text-gray-900 font-medium">{order.phone}</span></p>
-                                    </div>
-                                </div>
-                              </div>
                             )}
-                          </div>
-                        );
-                      })}
+                        </div>
+                    )}
+                </div>
+            );
+
+        case 'addresses':
+            return (
+                <div className="space-y-6 animate-fade-in">
+                    <div className="flex justify-between items-center">
+                        <h2 className="text-2xl font-bold text-[#1F2B5B]">Saved Addresses</h2>
+                        {!showAddForm && addresses.length < 3 && (
+                            <button onClick={() => { resetForm(); setShowAddForm(true); }} className="bg-[#1F2B5B] text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-[#283747] transition-all flex items-center gap-2">
+                                <Plus className="w-4 h-4" /> Add New
+                            </button>
+                        )}
                     </div>
 
-                    {/* Pagination */}
-                    {totalPages > 1 && (
-                      <div className="flex items-center justify-center gap-2 mt-8 p-4 bg-white rounded-lg border border-gray-200 shadow-sm">
-                        <button onClick={() => goToPage(currentPage - 1)} disabled={currentPage === 1} className="p-2 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed rounded transition-colors text-[#1F2B5B]">
-                          <ChevronLeft className="w-5 h-5" />
-                        </button>
-                        <div className="flex items-center gap-1">
-                          {Array.from({ length: totalPages }, (_, i) => i + 1)
-                            .filter(page => Math.abs(page - currentPage) <= 1 || page === 1 || page === totalPages)
-                            .map((page, index, array) => (
-                              <React.Fragment key={page}>
-                                {index > 0 && array[index - 1] !== page - 1 && <span className="px-2 text-gray-400">...</span>}
-                                <button onClick={() => goToPage(page)} className={`px-3 py-1 rounded-md font-medium transition-colors ${currentPage === page ? 'bg-[#1F2B5B] text-white shadow-md' : 'hover:bg-gray-100 text-gray-600'}`}>
-                                  {page}
-                                </button>
-                              </React.Fragment>
+                    {showAddForm ? (
+                        <form onSubmit={handleSaveAddress} className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm animate-in slide-in-from-top-2">
+                            <h3 className="font-bold text-lg mb-4 text-gray-900">{editingAddressId ? 'Edit Address' : 'New Address Details'}</h3>
+                            <div className="grid gap-4 md:grid-cols-2">
+                                <input placeholder="First Name" value={addressForm.first_name} onChange={e=>setAddressForm({...addressForm, first_name:e.target.value})} className="p-2 border rounded" required />
+                                <input placeholder="Last Name" value={addressForm.last_name} onChange={e=>setAddressForm({...addressForm, last_name:e.target.value})} className="p-2 border rounded" />
+                                <input placeholder="Label (Home/Office)" value={addressForm.label} onChange={e=>setAddressForm({...addressForm, label:e.target.value})} className="p-2 border rounded" required />
+                                <input placeholder="Phone" value={addressForm.phone} onChange={e=>setAddressForm({...addressForm, phone:e.target.value})} className="p-2 border rounded" required />
+                                <input placeholder="Address" value={addressForm.address} onChange={e=>setAddressForm({...addressForm, address:e.target.value})} className="md:col-span-2 p-2 border rounded" required />
+                                <input placeholder="Apartment (Optional)" value={addressForm.apartment} onChange={e=>setAddressForm({...addressForm, apartment:e.target.value})} className="md:col-span-2 p-2 border rounded" />
+                                <input placeholder="City" value={addressForm.city} onChange={e=>setAddressForm({...addressForm, city:e.target.value})} className="p-2 border rounded" required />
+                                <input placeholder="Zip Code" value={addressForm.zip_code} onChange={e=>setAddressForm({...addressForm, zip_code:e.target.value})} className="p-2 border rounded" required />
+                            </div>
+                            
+                            <div className="flex items-center gap-2 mt-4">
+                                <input type="checkbox" id="is_default" checked={addressForm.is_default} onChange={(e) => setAddressForm({...addressForm, is_default: e.target.checked})} className="w-4 h-4 text-[#1F2B5B] rounded" />
+                                <label htmlFor="is_default" className="text-sm text-gray-700">Set as default address</label>
+                            </div>
+
+                            <div className="flex gap-3 mt-6">
+                                <button disabled={submittingAddress} className="bg-[#1F2B5B] text-white px-6 py-2 rounded-lg text-sm font-bold hover:bg-[#283747]">{submittingAddress ? 'Saving...' : 'Save Address'}</button>
+                                <button type="button" onClick={resetForm} className="border px-4 py-2 rounded-lg text-sm hover:bg-gray-50">Cancel</button>
+                            </div>
+                        </form>
+                    ) : (
+                        <div className="grid gap-4">
+                            {addresses.map((addr) => (
+                                <div key={addr.id} className={`bg-white border p-5 rounded-xl flex justify-between items-center shadow-sm transition-all ${addr.is_default ? 'border-[#1F2B5B] bg-blue-50/10' : 'border-gray-200'}`}>
+                                    <div>
+                                        <div className="flex items-center gap-2 mb-1">
+                                            <span className="font-bold text-[#1F2B5B]">{addr.label}</span>
+                                            {addr.is_default && <span className="text-[10px] bg-[#1F2B5B] text-white px-2 py-0.5 rounded-full font-bold">DEFAULT</span>}
+                                        </div>
+                                        <p className="text-sm text-gray-600">{addr.first_name} {addr.last_name}</p>
+                                        <p className="text-sm text-gray-600">{addr.address}</p>
+                                        {addr.apartment && <p className="text-sm text-gray-600">{addr.apartment}</p>}
+                                        <p className="text-sm text-gray-600">{addr.city} - {addr.zip_code}</p>
+                                        <p className="text-xs text-gray-500 mt-1">Phone: {addr.phone}</p>
+                                    </div>
+                                    <div className="flex flex-col gap-2">
+                                        {!addr.is_default && <button onClick={() => handleSetDefault(addr.id)} className="text-blue-600 hover:bg-blue-50 p-2 rounded-full" title="Set Default"><Star className="w-4 h-4" /></button>}
+                                        <button onClick={() => handleEditAddress(addr)} className="text-gray-600 hover:bg-gray-100 p-2 rounded-full" title="Edit"><Pencil className="w-4 h-4" /></button>
+                                        <button onClick={() => handleDeleteAddress(addr.id)} className="text-red-500 hover:bg-red-50 p-2 rounded-full" title="Delete"><Trash2 className="w-4 h-4" /></button>
+                                    </div>
+                                </div>
                             ))}
                         </div>
-                        <button onClick={() => goToPage(currentPage + 1)} disabled={currentPage === totalPages} className="p-2 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed rounded transition-colors text-[#1F2B5B]">
-                          <ChevronRight className="w-5 h-5" />
-                        </button>
-                      </div>
                     )}
-                  </>
-                )}
-              </div>
-            )}
-
-            {/* --- ADDRESSES TAB (Unchanged) --- */}
-            {activeTab === 'addresses' && (
-              <div className="animate-fade-in">
-                {/* ... (Kept existing address logic as provided) ... */}
-                {/* I've hidden this part for brevity as it is identical to your provided code */}
-                {/* Paste your existing Address Tab code here starting from <div className="flex justify-between..." */}
-                
-                <div className="flex justify-between items-center mb-6">
-                  <h2 className="text-xl font-bold text-[#1F2B5B]">Saved Addresses</h2>
-                  {addresses.length < 3 && !showAddForm && (
-                    <button 
-                      onClick={() => setShowAddForm(true)}
-                      className="flex items-center gap-2 bg-[#1F2B5B] text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-[#283747] transition-all shadow-md"
-                    >
-                      <Plus className="w-4 h-4" /> Add New Address
-                    </button>
-                  )}
                 </div>
+            );
+        default: return null;
+    }
+  };
 
-                {loadingAddresses ? (
-                  <div className="flex justify-center py-12">
-                    <Loader2 className="w-8 h-8 animate-spin text-[#1F2B5B]" />
-                  </div>
-                ) : (
-                  <>
-                    {/* ADD ADDRESS FORM */}
-                    {showAddForm && (
-                      <form onSubmit={handleAddAddress} className="mb-8 p-6 bg-white rounded-xl border border-gray-200 shadow-sm animate-in slide-in-from-top-2">
-                        <h3 className="font-bold text-[#1F2B5B] mb-4">Add New Address</h3>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                          <input name="first_name" value={newAddress.first_name} onChange={handleAddressInput} placeholder="First name" className="px-3 py-2 border border-gray-300 rounded focus:ring-1 focus:ring-[#1F2B5B] focus:border-[#1F2B5B] outline-none" />
-                          <input name="last_name" value={newAddress.last_name} onChange={handleAddressInput} placeholder="Last name" className="px-3 py-2 border border-gray-300 rounded focus:ring-1 focus:ring-[#1F2B5B] focus:border-[#1F2B5B] outline-none" />
-                        </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                          <input name="label" placeholder="Label (e.g. Home, Office)" value={newAddress.label} onChange={handleAddressInput} className="p-2 border border-gray-300 rounded focus:ring-1 focus:ring-[#1F2B5B] focus:border-[#1F2B5B] outline-none" required />
-                          <input name="phone" placeholder="Phone Number" value={newAddress.phone} onChange={handleAddressInput} className="p-2 border border-gray-300 rounded focus:ring-1 focus:ring-[#1F2B5B] focus:border-[#1F2B5B] outline-none" required />
-                          <input name="address" placeholder="Address" value={newAddress.address} onChange={handleAddressInput} className="md:col-span-2 p-2 border border-gray-300 rounded focus:ring-1 focus:ring-[#1F2B5B] focus:border-[#1F2B5B] outline-none" required />
-                          <input name="apartment" placeholder="Apartment (Optional)" value={newAddress.apartment} onChange={handleAddressInput} className="md:col-span-2 p-2 border border-gray-300 rounded focus:ring-1 focus:ring-[#1F2B5B] focus:border-[#1F2B5B] outline-none" />
-                          <input name="city" placeholder="City" value={newAddress.city} onChange={handleAddressInput} className="p-2 border border-gray-300 rounded focus:ring-1 focus:ring-[#1F2B5B] focus:border-[#1F2B5B] outline-none" required />
-                          <input name="zip_code" placeholder="Pin Code" value={newAddress.zip_code} onChange={handleAddressInput} className="p-2 border border-gray-300 rounded focus:ring-1 focus:ring-[#1F2B5B] focus:border-[#1F2B5B] outline-none" required />
-                          <select name="state" value={newAddress.state} onChange={handleAddressInput} className="p-2 border border-gray-300 rounded bg-white focus:ring-1 focus:ring-[#1F2B5B] focus:border-[#1F2B5B] outline-none">
-                            <option value="Telangana">Telangana</option>
-                            <option value="Andhra Pradesh">Andhra Pradesh</option>
-                            <option value="Karnataka">Karnataka</option>
-                            <option value="Tamil Nadu">Tamil Nadu</option>
-                            <option value="Maharashtra">Maharashtra</option>
-                            <option value="Delhi">Delhi</option>
-                          </select>
-                          <input name="country" placeholder="Country" value={newAddress.country} onChange={handleAddressInput} className="p-2 border border-gray-300 rounded bg-gray-100 text-gray-500" readOnly />
-                        </div>
-                        <div className="flex items-center gap-2 mt-4">
-                          <input type="checkbox" checked={newAddress.is_default} name="is_default" onChange={handleAddressInput} className="w-4 h-4 text-[#1F2B5B] focus:ring-[#1F2B5B]" />
-                          <label className="text-sm text-gray-700">Set as default address</label>
-                        </div>
-                        <div className="flex gap-3 mt-6">
-                          <button type="submit" disabled={submittingAddress} className="bg-[#1F2B5B] text-white px-6 py-2.5 rounded-lg text-sm font-medium hover:bg-[#283747] disabled:opacity-50 shadow-md transition-all">
-                            {submittingAddress ? 'Saving...' : 'Save Address'}
-                          </button>
-                          <button type="button" onClick={() => setShowAddForm(false)} className="bg-white border border-gray-300 text-gray-700 px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-gray-50 transition-all">Cancel</button>
-                        </div>
-                      </form>
-                    )}
+  if (loading) return <div className="min-h-screen flex justify-center items-center"><Loader2 className="w-10 h-10 animate-spin text-[#1F2B5B]" /></div>;
 
-                    {/* ADDRESS LIST */}
-                    {addresses.length === 0 && !showAddForm ? (
-                      <div className="text-center py-12 bg-white rounded-xl border border-dashed border-gray-300">
-                        <MapPin className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                        <p className="text-gray-500">No addresses saved.</p>
-                        <button onClick={() => setShowAddForm(true)} className="text-[#1F2B5B] underline mt-2 font-medium hover:text-[#F4C430] transition-colors">Add one now</button>
-                      </div>
-                    ) : (
-                      <div className="grid gap-4">
-                        {addresses.map((addr) => (
-                          <div key={addr.id} className={`relative p-5 rounded-xl border transition-all hover:shadow-md ${addr.is_default ? "border-[#1F2B5B] bg-blue-50/30" : "border-gray-200 bg-white"}`}>
-                            {addr.is_default && (
-                              <span className="absolute top-0 right-0 bg-[#1F2B5B] text-white text-[10px] uppercase font-bold px-3 py-1 rounded-bl-lg rounded-tr-lg">
-                                Default
-                              </span>
-                            )}
-                            
-                            <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
-                              <div>
-                                <h3 className="font-bold text-[#1F2B5B] flex items-center gap-2 text-lg">
-                                  {addr.label}
-                                </h3>
-                                <p className="text-sm text-gray-700 mt-2 font-medium">{addr.first_name} {addr.last_name}</p>
-                                <p className="text-sm text-gray-600 mt-1">{addr.address}</p>
-                                {addr.apartment && <p className="text-sm text-gray-600">{addr.apartment}</p>}
-                                <p className="text-sm text-gray-600 mt-1">{addr.city}, {addr.state} - {addr.zip_code}</p>
-                                <p className="text-sm text-gray-600 mt-2 pt-2 border-t border-gray-100 inline-block">Phone: <span className="font-medium text-gray-900">{addr.phone}</span></p>
-                              </div>
-                              
-                              <div className="flex gap-3 mt-2 sm:mt-0">
-                                {!addr.is_default && (
-                                  <button 
-                                    onClick={() => handleSetDefault(addr.id)}
-                                    className="flex items-center gap-1 text-xs font-medium text-[#1F2B5B] hover:text-[#F4C430] border border-gray-300 hover:border-[#1F2B5B] px-3 py-1.5 rounded-md transition-all"
-                                  >
-                                    <Star className="w-3 h-3" /> Set Default
-                                  </button>
-                                )}
-                                <button 
-                                  onClick={() => handleDeleteAddress(addr.id)}
-                                  className="flex items-center gap-1 text-xs font-medium text-red-500 hover:text-red-700 border border-gray-300 hover:border-red-200 hover:bg-red-50 px-3 py-1.5 rounded-md transition-all"
-                                >
-                                  <Trash2 className="w-3 h-3" /> Remove
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </>
-                )}
+  return (
+    <div className="min-h-screen bg-gray-50 pt-32 md:pt-36 pb-12">
+      <div className="container mx-auto px-4 md:px-8 max-w-6xl">
+        <div className="flex flex-col lg:flex-row gap-8">
+          <aside className="w-full lg:w-72 bg-white rounded-xl shadow-sm p-6 h-fit border border-gray-100">
+            <div className="flex items-center gap-4 mb-8 pb-6 border-b border-gray-100">
+              <div className="w-12 h-12 rounded-full bg-[#1F2B5B] flex items-center justify-center text-white font-bold text-lg flex-shrink-0">
+                {userProfile?.first_name?.[0]}{userProfile?.last_name?.[0] || userProfile?.email?.[0]}
               </div>
-            )}
-          </div>
+              <div className="overflow-hidden">
+                <p className="text-xs text-gray-500 font-medium">Hello,</p>
+                <p className="text-base font-bold truncate text-gray-900" title={userProfile?.email}>
+                    {userProfile?.first_name ? `${userProfile.first_name} ${userProfile.last_name || ''}` : userProfile?.email?.split('@')[0]}
+                </p>
+              </div>
+            </div>
+            <nav className="space-y-1">
+              {[ { id: 'profile', label: 'My Profile', icon: User }, { id: 'orders', label: 'My Orders', icon: Package }, { id: 'addresses', label: 'Saved Addresses', icon: MapPin } ].map((item) => (
+                <button key={item.id} onClick={() => setActiveTab(item.id as any)} className={`w-full flex items-center justify-between px-4 py-3 rounded-lg text-sm font-medium transition-all ${activeTab === item.id ? 'bg-[#1F2B5B] text-white shadow-md' : 'text-gray-600 hover:bg-gray-50 hover:text-[#1F2B5B]'}`}>
+                  <div className="flex items-center gap-3"><item.icon className={`h-4 w-4 ${activeTab === item.id ? 'text-white' : 'text-gray-400'}`} />{item.label}</div>
+                  {activeTab === item.id && <ChevronRight className="h-4 w-4 text-white/80" />}
+                </button>
+              ))}
+              <div className="pt-4 mt-4 border-t border-gray-100">
+                <button onClick={handleLogout} className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-red-600 hover:bg-red-50 transition-colors"><LogOut className="h-4 w-4" /> Logout</button>
+              </div>
+            </nav>
+          </aside>
+          <main className="flex-1 bg-white rounded-xl shadow-sm p-6 md:p-8 border border-gray-100 min-h-[500px]">
+            {renderContent()}
+          </main>
         </div>
       </div>
+
+      {actionModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+            <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6 relative animate-in zoom-in-95 max-h-[90vh] overflow-y-auto">
+                <button onClick={() => setActionModalOpen(false)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
+                <h3 className="text-xl font-bold text-[#1F2B5B] mb-2 capitalize">Request {actionType}</h3>
+                <p className="text-sm text-gray-500 mb-4">Please select a reason:</p>
+                <div className="space-y-2 mb-6">
+                    {RETURN_REASONS.map((reason) => (
+                        <label key={reason} className={`flex items-center p-3 border rounded-lg cursor-pointer transition-all ${selectedReason === reason ? 'border-[#1F2B5B] bg-blue-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                            <input type="radio" className="w-4 h-4 text-[#1F2B5B] focus:ring-[#1F2B5B]" checked={selectedReason === reason} onChange={() => setSelectedReason(reason)} />
+                            <span className="ml-3 text-sm font-medium text-gray-700">{reason}</span>
+                        </label>
+                    ))}
+                </div>
+                
+                <p className="text-sm text-gray-500 mb-2">Upload Opening Video (Mandatory):</p>
+                <div className="mb-6">
+                    <label className={`flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-lg cursor-pointer transition-colors ${proofVideo ? 'border-[#1F2B5B] bg-blue-50' : 'border-gray-300 hover:bg-gray-50'}`}>
+                        <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                            {proofVideo ? (
+                                <>
+                                    <FileVideo className="w-8 h-8 text-[#1F2B5B] mb-2" />
+                                    <p className="text-sm text-gray-700 font-medium truncate max-w-[200px]">{proofVideo.name}</p>
+                                    <p className="text-xs text-green-600 mt-1">Video selected</p>
+                                </>
+                            ) : (
+                                <>
+                                    <UploadCloud className="w-8 h-8 text-gray-400 mb-2" />
+                                    <p className="text-sm text-gray-500"><span className="font-semibold">Click to upload</span> unboxing video</p>
+                                    <p className="text-xs text-gray-400">MP4, MOV (Max 50MB)</p>
+                                </>
+                            )}
+                        </div>
+                        <input type="file" className="hidden" accept="video/*" onChange={handleFileChange} />
+                    </label>
+                </div>
+
+                <button onClick={handleSubmitAction} disabled={isSubmittingAction || !selectedReason || !proofVideo} className="w-full bg-[#1F2B5B] text-white py-3 rounded-lg font-bold text-sm hover:bg-[#283747] disabled:bg-gray-300 disabled:cursor-not-allowed">
+                    {isSubmittingAction ? "Uploading & Submitting..." : "Submit Request"}
+                </button>
+            </div>
+        </div>
+      )}
     </div>
   );
 };

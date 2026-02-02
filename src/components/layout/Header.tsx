@@ -1,28 +1,26 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Search, ShoppingBag, Menu, X, User, ChevronDown, ChevronRight } from "lucide-react";
+import { Search, ShoppingBag, Menu, X, User, ChevronDown } from "lucide-react";
 import { useCart } from "../../context/CartContext";
 import { storeService } from "../../services/api";
 
 export default function Header() {
-  // 🔥 FIX 1: Use getCartCount function, then call it to get the number
   const { getCartCount } = useCart();
-  const cartCount = getCartCount(); 
+  const cartCount = getCartCount();
 
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const mobileSearchInputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
 
-  // --- 1. DATA STATE ---
+  // Data State
   const [menCategories, setMenCategories] = useState<any[]>([]);
   const [womenCategories, setWomenCategories] = useState<any[]>([]);
   const [collections, setCollections] = useState<any[]>([]);
-  
-  // Mobile Accordion State
   const [expandedMenu, setExpandedMenu] = useState<string | null>(null);
 
-  // --- 2. FETCH DATA ---
+  // Fetch Data
   useEffect(() => {
     const fetchMenuData = async () => {
       try {
@@ -30,30 +28,31 @@ export default function Header() {
           storeService.getCategories(),
           storeService.getCollections()
         ]);
-
         const allCats = catsData.results || catsData;
         const allCols = colsData.results || colsData;
 
-        // 🔥 DEBUG: Check console to see if gender is actually 'Men' or 'Women' in your DB
-        console.log("All Categories:", allCats); 
-
-        // Filter Categories
         setMenCategories(allCats.filter((c: any) => c.gender === 'Men' || c.gender === 'All'));
         setWomenCategories(allCats.filter((c: any) => c.gender === 'Women' || c.gender === 'All'));
-        
         setCollections(allCols);
       } catch (error) {
-        console.error("Failed to load menu data", error);
+        console.error("Menu data error", error);
       }
     };
     fetchMenuData();
   }, []);
 
+  // Focus mobile search input
+  useEffect(() => {
+    if (isMobileSearchOpen && mobileSearchInputRef.current) {
+        setTimeout(() => mobileSearchInputRef.current?.focus(), 100);
+    }
+  }, [isMobileSearchOpen]);
+
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     if (searchQuery.trim()) {
       navigate(`/products?search=${encodeURIComponent(searchQuery)}`);
-      setIsSearchOpen(false);
+      setIsMobileSearchOpen(false);
     }
   };
 
@@ -62,7 +61,7 @@ export default function Header() {
   };
 
   return (
-    <header className="fixed top-0 left-0 right-0 bg-white z-50 border-b border-gray-100">
+    <header className="fixed top-0 left-0 right-0 bg-white z-40 border-b border-gray-100 font-sans">
       
       {/* Promotion Bar */}
       <div className="bg-[#1F2B5B] text-white text-[10px] sm:text-xs py-2 text-center tracking-widest font-medium px-4">
@@ -70,27 +69,44 @@ export default function Header() {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16 md:h-20">
+        {/* Added 'relative' to parent for absolute positioning of logo on mobile */}
+        <div className="relative flex items-center justify-between h-16 md:h-20">
           
-          {/* Mobile Menu Button */}
-          <button onClick={() => setIsMenuOpen(true)} className="p-2 -ml-2 md:hidden text-gray-700 hover:text-[#1F2B5B]">
-            <Menu className="w-6 h-6" />
-          </button>
+          {/* --- LEFT: Mobile Menu Button (Visible only on Mobile) --- */}
+          <div className="flex items-center md:hidden z-20">
+            <button 
+              onClick={() => setIsMenuOpen(true)} 
+              className="p-2 -ml-2 text-gray-700 hover:text-[#1F2B5B]"
+            >
+              <Menu className="w-6 h-6" />
+            </button>
+          </div>
 
-          {/* Logo */}
-          <Link to="/" className="text-xl sm:text-2xl font-bold tracking-tighter text-[#1F2B5B] uppercase">
-            STATURE VOGUE
+          {/* --- LOGO: Absolute Center on Mobile, Static Left on Desktop --- */}
+          <Link to="/" className="flex items-center gap-2 
+              absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 
+              md:static md:translate-x-0 md:translate-y-0 md:flex-shrink-0 z-10">
+               {/* Logo Image - Removed Border */}
+               <img 
+                 src="/logo.jpeg" 
+                 alt="Logo" 
+                 className="h-10 w-10 md:h-12 md:w-12 rounded-full object-cover" 
+               />
+               {/* Logo Text */}
+               <span className="text-lg sm:text-xl md:text-2xl font-bold tracking-tighter text-[#1F2B5B] uppercase whitespace-nowrap">
+                 STATURE VOGUE
+               </span>
           </Link>
 
-          {/* --- DESKTOP NAVIGATION --- */}
-          <nav className="hidden md:flex items-center space-x-8">
+          {/* --- CENTER: Desktop Navigation (Hidden on Mobile) --- */}
+          {/* Added margin-left to separate from logo on desktop */}
+          <nav className="hidden md:flex items-center space-x-6 lg:space-x-8 ml-8">
             
-            {/* 1. NEW ARRIVALS (Direct Link) */}
-            <Link to="/products?badge=NEW" className="text-sm font-bold text-red-600 hover:text-red-700 uppercase tracking-wide">
+            <Link to="/products?badge=NEW" className="text-sm font-bold text-red-600 hover:text-red-700 uppercase tracking-wide whitespace-nowrap">
               New Arrivals
             </Link>
 
-            {/* 2. MEN DROPDOWN */}
+            {/* MEN */}
             <div className="relative group h-20 flex items-center">
               <Link to="/products?gender=Men" className="text-sm font-medium text-gray-700 hover:text-[#1F2B5B] uppercase tracking-wide flex items-center gap-1">
                 Men <ChevronDown className="w-3 h-3 opacity-50" />
@@ -99,20 +115,16 @@ export default function Header() {
                 <div className="py-2">
                   <Link to="/products?gender=Men" className="block px-4 py-2 text-sm font-bold text-[#1F2B5B] hover:bg-gray-50">Shop All Men</Link>
                   <div className="border-t border-gray-100 my-1"></div>
-                  {menCategories.length > 0 ? (
-                    menCategories.map((cat) => (
-                      <Link key={cat.id} to={`/products?gender=Men&category=${cat.name}`} className="block px-4 py-2 text-sm text-gray-600 hover:text-[#1F2B5B] hover:bg-gray-50">
-                        {cat.name}
-                      </Link>
-                    ))
-                  ) : (
-                    <span className="block px-4 py-2 text-xs text-gray-400 italic">No categories found</span>
-                  )}
+                  {menCategories.map((cat) => (
+                    <Link key={cat.id} to={`/products?gender=Men&category=${cat.name}`} className="block px-4 py-2 text-sm text-gray-600 hover:text-[#1F2B5B] hover:bg-gray-50">
+                      {cat.name}
+                    </Link>
+                  ))}
                 </div>
               </div>
             </div>
 
-            {/* 3. WOMEN DROPDOWN */}
+            {/* WOMEN */}
             <div className="relative group h-20 flex items-center">
               <Link to="/products?gender=Women" className="text-sm font-medium text-gray-700 hover:text-[#1F2B5B] uppercase tracking-wide flex items-center gap-1">
                 Women <ChevronDown className="w-3 h-3 opacity-50" />
@@ -121,20 +133,16 @@ export default function Header() {
                 <div className="py-2">
                   <Link to="/products?gender=Women" className="block px-4 py-2 text-sm font-bold text-[#1F2B5B] hover:bg-gray-50">Shop All Women</Link>
                   <div className="border-t border-gray-100 my-1"></div>
-                  {womenCategories.length > 0 ? (
-                    womenCategories.map((cat) => (
-                      <Link key={cat.id} to={`/products?gender=Women&category=${cat.name}`} className="block px-4 py-2 text-sm text-gray-600 hover:text-[#1F2B5B] hover:bg-gray-50">
-                        {cat.name}
-                      </Link>
-                    ))
-                  ) : (
-                    <span className="block px-4 py-2 text-xs text-gray-400 italic">No categories found</span>
-                  )}
+                  {womenCategories.map((cat) => (
+                    <Link key={cat.id} to={`/products?gender=Women&category=${cat.name}`} className="block px-4 py-2 text-sm text-gray-600 hover:text-[#1F2B5B] hover:bg-gray-50">
+                      {cat.name}
+                    </Link>
+                  ))}
                 </div>
               </div>
             </div>
 
-            {/* 4. COLLECTIONS DROPDOWN */}
+            {/* COLLECTIONS */}
             <div className="relative group h-20 flex items-center">
               <span className="text-sm font-medium text-gray-700 hover:text-[#1F2B5B] uppercase tracking-wide cursor-pointer flex items-center gap-1">
                 Collections <ChevronDown className="w-3 h-3 opacity-50" />
@@ -150,20 +158,47 @@ export default function Header() {
                 </div>
               </div>
             </div>
-
           </nav>
 
-          {/* Icons */}
-          <div className="flex items-center space-x-3 sm:space-x-5">
-            <button onClick={() => setIsSearchOpen(!isSearchOpen)} className="p-1 text-gray-700 hover:text-[#1F2B5B] transition-colors">
-              <Search className="w-5 h-5" />
+          {/* --- RIGHT ACTIONS: Search, User, Cart --- */}
+          {/* ml-auto ensures right alignment on mobile since logo is absolute */}
+          <div className="flex items-center gap-2 sm:gap-4 ml-auto md:ml-0 z-20">
+            
+            {/* DESKTOP SEARCH BAR */}
+
+
+
+            <div className="hidden md:block w-full max-w-[200px] lg:max-w-[260px]">
+              <form onSubmit={handleSearch} className="relative group">
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search..."
+                  className="w-full py-2 pl-3 pr-8 text-sm bg-gray-50 border border-gray-200 rounded-full focus:outline-none focus:border-[#1F2B5B] focus:ring-1 focus:ring-[#1F2B5B] transition-all"
+                />
+                <button type="submit" className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-[#1F2B5B]">
+                  <Search className="w-4 h-4" />
+                </button>
+              </form>
+            </div>
+
+            {/* MOBILE SEARCH ICON */}
+            <button 
+              onClick={() => setIsMobileSearchOpen(!isMobileSearchOpen)} 
+              className="md:hidden p-1 text-gray-700 hover:text-[#1F2B5B] transition-colors"
+            >
+              {isMobileSearchOpen ? <X className="w-5 h-5" /> : <Search className="w-5 h-5" />}
             </button>
-            <Link to="/user" className="p-1 text-gray-700 hover:text-[#1F2B5B] transition-colors hidden sm:block">
+
+            {/* PROFILE (Desktop Only) */}
+            <Link to="/user" className="p-1 text-gray-700 hover:text-[#1F2B5B] transition-colors hidden md:block">
               <User className="w-5 h-5" />
             </Link>
+            
+            {/* CART (Always Visible) */}
             <Link to="/cart" className="p-1 text-gray-700 hover:text-[#1F2B5B] transition-colors relative">
               <ShoppingBag className="w-5 h-5" />
-              {/* 🔥 FIX 2: Use cartCount derived variable */}
               {cartCount > 0 && (
                 <span className="absolute -top-1 -right-1 bg-[#F4C430] text-[#1F2B5B] text-[10px] font-bold w-4 h-4 flex items-center justify-center rounded-full">
                   {cartCount}
@@ -172,47 +207,56 @@ export default function Header() {
             </Link>
           </div>
         </div>
-
-        {/* Search Bar */}
-        {isSearchOpen && (
-          <div className="absolute top-full left-0 right-0 bg-white border-t border-gray-100 p-4 shadow-lg animate-fade-in">
-            <form onSubmit={handleSearch} className="max-w-3xl mx-auto flex items-center gap-2">
-              <Search className="w-5 h-5 text-gray-400" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search for products..."
-                className="flex-1 bg-transparent border-none focus:ring-0 text-sm placeholder:text-gray-400"
-                autoFocus
-              />
-              <button type="button" onClick={() => setIsSearchOpen(false)}><X className="w-5 h-5 text-gray-400 hover:text-gray-600" /></button>
-            </form>
-          </div>
-        )}
       </div>
 
-      {/* --- MOBILE MENU (ACCORDION STYLE) --- */}
+      {/* --- MOBILE SEARCH DROPDOWN (Under Header) --- */}
+      {isMobileSearchOpen && (
+        <div className="md:hidden absolute top-full left-0 right-0 border-t border-gray-100 bg-white p-4 shadow-lg animate-in slide-in-from-top-2 z-30">
+          <form onSubmit={handleSearch} className="relative">
+            <input
+              ref={mobileSearchInputRef}
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search products..."
+              className="w-full py-3 pl-4 pr-10 bg-gray-50 border border-gray-200 rounded-lg text-base focus:outline-none focus:border-[#1F2B5B] focus:ring-1 focus:ring-[#1F2B5B]"
+            />
+            <button type="submit" className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500">
+              <Search className="w-5 h-5" />
+            </button>
+          </form>
+        </div>
+      )}
+
+      {/* --- MOBILE MENU SIDEBAR --- */}
       {isMenuOpen && (
         <div className="fixed inset-0 z-50 md:hidden">
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setIsMenuOpen(false)}></div>
           <div className="relative bg-white w-[85%] max-w-[320px] h-full shadow-2xl overflow-y-auto animate-slide-right flex flex-col">
             
-            {/* Header */}
+            {/* Menu Header */}
             <div className="p-5 border-b flex justify-between items-center bg-gray-50">
               <span className="font-bold text-lg text-[#1F2B5B] tracking-tight">MENU</span>
               <button onClick={() => setIsMenuOpen(false)}><X className="w-6 h-6 text-gray-500" /></button>
             </div>
-            
-            {/* Links */}
+
             <div className="flex-1 p-5 space-y-2">
               
-              {/* 1. New Arrivals */}
+              {/* MOVED MY ACCOUNT TO TOP */}
+              <Link 
+                to="/user" 
+                className="flex items-center gap-3 py-3 font-bold text-[#1F2B5B] border-b-2 border-[#1F2B5B] mb-4 bg-blue-50/50 -mx-5 px-5" 
+                onClick={() => setIsMenuOpen(false)}
+              >
+                <User className="w-5 h-5" /> 
+                <span>My Orders & Account</span>
+              </Link>
+
               <Link to="/products?badge=NEW" className="block py-3 font-bold text-red-600 border-b border-gray-100" onClick={() => setIsMenuOpen(false)}>
                 NEW ARRIVALS
               </Link>
-
-              {/* 2. Men Accordion */}
+              
+              {/* Men Mobile */}
               <div>
                 <button onClick={() => toggleMobileSubmenu('men')} className="w-full py-3 flex justify-between items-center font-bold text-gray-800 border-b border-gray-100">
                   MEN <ChevronDown className={`w-4 h-4 transition-transform ${expandedMenu === 'men' ? 'rotate-180' : ''}`} />
@@ -227,7 +271,7 @@ export default function Header() {
                 )}
               </div>
 
-              {/* 3. Women Accordion */}
+              {/* Women Mobile */}
               <div>
                 <button onClick={() => toggleMobileSubmenu('women')} className="w-full py-3 flex justify-between items-center font-bold text-gray-800 border-b border-gray-100">
                   WOMEN <ChevronDown className={`w-4 h-4 transition-transform ${expandedMenu === 'women' ? 'rotate-180' : ''}`} />
@@ -242,23 +286,9 @@ export default function Header() {
                 )}
               </div>
 
-              {/* 4. Best Sellers & Collections */}
               <Link to="/products?badge=BESTSELLER" className="block py-3 font-medium text-gray-800 border-b border-gray-100" onClick={() => setIsMenuOpen(false)}>
                 Best Sellers
               </Link>
-              {collections.map((col) => (
-                 <Link key={col.id} to={`/products?collection=${col.slug}`} className="block py-3 font-medium text-gray-800 border-b border-gray-100" onClick={() => setIsMenuOpen(false)}>
-                   {col.title}
-                 </Link>
-              ))}
-
-            </div>
-
-            {/* Footer Links */}
-            <div className="p-5 bg-gray-50 border-t">
-               <Link to="/user" className="flex items-center gap-2 font-medium text-gray-700" onClick={() => setIsMenuOpen(false)}>
-                 <User className="w-5 h-5" /> My Account
-               </Link>
             </div>
           </div>
         </div>

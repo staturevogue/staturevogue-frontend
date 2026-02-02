@@ -12,7 +12,7 @@ export default function Login() {
   const [isLogin, setIsLogin] = useState(true); // Toggle between Login and Signup
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   // Form Data
   const [formData, setFormData] = useState({
     fullName: '',
@@ -197,21 +197,27 @@ export default function Login() {
                 </button>
             </div>
 
-            {/* Confirm Password (Signup Only) */}
-            {!isLogin && (
-              <div className="animate-fade-in-up">
-                <input
-                  type="password"
-                  name="confirmPassword"
-                  autoComplete="new-password"
-                  value={formData.confirmPassword}
-                  onChange={handleChange}
-                  required
-                  placeholder="Confirm Password"
-                />
-
-              </div>
-            )}
+            {/* Confirm Password Field (Signup Only) */}
+{!isLogin && (
+  <div className="animate-fade-in-up relative">
+    <input
+      type={showConfirmPassword ? "text" : "password"}
+      name="confirmPassword"
+      value={formData.confirmPassword}
+      onChange={handleChange}
+      required
+      placeholder="Confirm Password"
+      className="appearance-none rounded relative block w-full px-3 py-3 border border-gray-300 pr-10"
+    />
+    <button
+      type="button"
+      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+    >
+      {showConfirmPassword ? <EyeOff className="w-5 h-5"/> : <Eye className="w-5 h-5"/>}
+    </button>
+  </div>
+)}
           </div>
 
           {/* Submit Button */}
