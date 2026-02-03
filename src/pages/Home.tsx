@@ -1,10 +1,9 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { ChevronLeft, ChevronRight, ArrowRight, Plane, Shirt, Leaf, Luggage, Loader2 } from "lucide-react"; 
+import { ChevronLeft, ChevronRight, ArrowRight, Loader2, Plane, Luggage, Shirt, Leaf } from "lucide-react"; 
 import ProductCard from "../components/ProductCard"; 
 import { storeService } from "../services/api";
 
-// Helper for "Most Popular" Cards
 const CollectionCard = ({ title, image, slug }: { title: string, image: string, slug: string }) => (
   <Link to={`/products?collection=${slug}`} className="group block relative overflow-hidden h-full rounded-lg shadow-sm">
     <div className="aspect-[3/4] overflow-hidden bg-gray-100 relative">
@@ -24,35 +23,68 @@ export default function Home() {
   const [currentSlide, setCurrentSlide] = useState(0);
   
   // Data State
-  const [collections, setCollections] = useState<any[]>([]); // "Most Popular"
-  const [categories, setCategories] = useState<any[]>([]);   // "Shop by Collection"
+  const [collections, setCollections] = useState<any[]>([]); 
+  const [categories, setCategories] = useState<any[]>([]); 
   const [newArrivals, setNewArrivals] = useState<any[]>([]);
   const [bestSellers, setBestSellers] = useState<any[]>([]);
+  
+  // Dynamic Content State
+  const [heroSlides, setHeroSlides] = useState<any[]>([]);
+  const [brandStory, setBrandStory] = useState<any>(null);
+  const [brandFeatures, setBrandFeatures] = useState<any[]>([]);
+  
   const [loading, setLoading] = useState(true);
 
-  // Static Hero Slides
-  const heroSlides = [
-    { image: "/images/hero/slide1.jpg", title: "Own the sky", subtitle: "In style", link: "/products" },
-    { image: "/images/hero/slide2.jpg", title: "Travel Essentials", subtitle: "Comfort Redefined", link: "/products?collection=casual" },
+  // --- DEFAULTS (Restored from your earlier code) ---
+  const defaultSlides = [
+    { image: "/images/hero/slide1.jpg", title: "Own the sky", subtitle: "In style", button_link: "/products", button_text: "SHOP NOW" },
+    { image: "/images/hero/slide2.jpg", title: "Travel Essentials", subtitle: "Comfort Redefined", button_link: "/products?collection=casual", button_text: "SHOP NOW" },
   ];
+
+  const defaultStory = {
+    heading: "Our Story",
+    content: "Staturevogue is all about modern, on-the-move must-haves. We aim to merge high-fashion minimalism with the uniqueness and comfort of athleisure.",
+    image_1: "/images/products/men-oversize.jpg",
+    image_2: "/images/products/women-dryfit.jpg"
+  };
+
+  // Used if no dynamic features exist
+  const defaultFeatures = [
+    { title: "On the move", icon: Plane },
+    { title: "Travel Friendly", icon: Luggage },
+    { title: "Utilitarian", icon: Shirt },
+    { title: "Home Grown", icon: Leaf },
+  ];
+
+  // Final Data to Render (Backend Data OR Default)
+  const finalSlides = heroSlides.length > 0 ? heroSlides : defaultSlides;
+  const finalStory = brandStory || defaultStory;
+  const finalFeatures = brandFeatures.length > 0 ? brandFeatures : null; // We handle null differently to render hardcoded icons
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // 1. Fetch "Most Popular" (Collections Table)
-        const cols = await storeService.getCollections();
+        // 1. Fetch Dynamic Content
+        try {
+            const content = await storeService.getWebContent();
+            setHeroSlides(content.hero_slides || []);
+            setBrandStory(content.brand_story || null);
+            setBrandFeatures(content.brand_features || []);
+        } catch (e) {
+            console.warn("Dynamic content failed, using defaults");
+        }
+
+        // 2. Fetch Products
+        const [cols, cats, newProds, bestProds] = await Promise.all([
+            storeService.getCollections(),
+            storeService.getCategories({ featured: true }),
+            storeService.getProducts({ badge: 'NEW' }),
+            storeService.getProducts({ badge: 'BESTSELLER' })
+        ]);
+
         setCollections(cols.results || cols);
-
-        // 2. Fetch "Shop By Collection" (Categories Table)
-        const cats = await storeService.getCategories({ featured: true }); 
         setCategories(cats.results || cats);
-
-        // 3. New Arrivals (Products with badge='NEW')
-        const newProds = await storeService.getProducts({ badge: 'NEW' });
         setNewArrivals(newProds.results || newProds);
-
-        // 4. Best Sellers (Products with badge='BESTSELLER')
-        const bestProds = await storeService.getProducts({ badge: 'BESTSELLER' });
         setBestSellers(bestProds.results || bestProds);
 
       } catch (err) {
@@ -68,25 +100,40 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-white">
-      {/* Hero */}
+      
+      {/* HERO SECTION */}
       <section className="relative h-[500px] md:h-[600px] overflow-hidden group">
-        {heroSlides.map((slide, index) => (
-          <div key={index} className={`absolute inset-0 transition-opacity duration-700 ${index === currentSlide ? "opacity-100" : "opacity-0"}`}>
+        {finalSlides.map((slide, index) => (
+          <div 
+            key={index} 
+            // 🔥 CRITICAL FIX: Added 'pointer-events-none' to hidden slides
+            // This prevents the invisible 2nd slide from capturing clicks meant for the 1st slide
+            className={`absolute inset-0 transition-opacity duration-700 
+                ${index === currentSlide ? "opacity-100 z-10 pointer-events-auto" : "opacity-0 z-0 pointer-events-none"}`}
+          >
             <img src={slide.image} alt={slide.title} className="w-full h-full object-cover" />
             <div className="absolute inset-0 bg-black/20 flex items-center justify-center text-center">
               <div className="text-white px-4">
                 <h2 className="text-5xl md:text-7xl font-bold mb-4 leading-tight">{slide.title}</h2>
                 <p className="text-xl md:text-2xl mb-8 font-light">{slide.subtitle}</p>
-                <Link to={slide.link} className="bg-white text-[#1F2B5B] px-8 py-3 rounded-md font-bold hover:bg-gray-100 transition shadow-lg">SHOP NOW</Link>
+                <Link to={slide.button_link} className="bg-white text-[#1F2B5B] px-8 py-3 rounded-md font-bold hover:bg-gray-100 transition shadow-lg">
+                    {slide.button_text}
+                </Link>
               </div>
             </div>
           </div>
         ))}
-        <button onClick={() => setCurrentSlide((c) => (c - 1 + heroSlides.length) % heroSlides.length)} className="absolute left-4 top-1/2 -translate-y-1/2 p-2 bg-white/30 rounded-full hover:bg-white transition"><ChevronLeft /></button>
-        <button onClick={() => setCurrentSlide((c) => (c + 1) % heroSlides.length)} className="absolute right-4 top-1/2 -translate-y-1/2 p-2 bg-white/30 rounded-full hover:bg-white transition"><ChevronRight /></button>
+        
+        {/* Navigation Arrows */}
+        {finalSlides.length > 1 && (
+            <>
+                <button onClick={() => setCurrentSlide((c) => (c - 1 + finalSlides.length) % finalSlides.length)} className="absolute left-4 top-1/2 -translate-y-1/2 p-2 bg-white/30 rounded-full hover:bg-white transition z-20"><ChevronLeft /></button>
+                <button onClick={() => setCurrentSlide((c) => (c + 1) % finalSlides.length)} className="absolute right-4 top-1/2 -translate-y-1/2 p-2 bg-white/30 rounded-full hover:bg-white transition z-20"><ChevronRight /></button>
+            </>
+        )}
       </section>
 
-      {/* 1. MOST POPULAR (Dynamically fetched Collections) */}
+      {/* 1. MOST POPULAR */}
       {collections.length > 0 && (
         <section className="max-w-7xl mx-auto px-4 py-16">
           <div className="text-center mb-12">
@@ -112,7 +159,7 @@ export default function Home() {
         </section>
       )}
 
-      {/* 2. Shop by Collection (Dynamically fetched Categories) */}
+      {/* 2. Shop by Category */}
       {categories.length > 0 && (
         <section className="bg-white py-16">
           <div className="max-w-7xl mx-auto px-4">
@@ -131,25 +178,41 @@ export default function Home() {
         </section>
       )}
 
-      {/* 3. Our Story (Static) */}
+      {/* 3. BRAND STORY (Dynamic or Default) */}
       <section className="bg-[#1F2B5B] text-white overflow-hidden">
         <div className="flex flex-col md:flex-row">
-          <div className="md:w-1/2 p-12 md:p-20 flex flex-col justify-center">
-            <h3 className="text-xs font-bold tracking-[0.3em] text-[#F4C430] mb-4 uppercase">Our Story</h3>
-            <p className="text-sm md:text-base leading-relaxed text-gray-300 mb-12 max-w-lg">
-              Staturevogue is all about modern, on-the-move must-haves. We aim to merge high-fashion minimalism with the uniqueness and comfort of athleisure.
+        <div className="md:w-1/2 p-12 md:p-20 flex flex-col justify-center">
+            <h3 className="text-xs font-bold tracking-[0.3em] text-[#F4C430] mb-4 uppercase">{finalStory.heading}</h3>
+            <p className="text-sm md:text-base leading-relaxed text-gray-300 mb-12 max-w-lg whitespace-pre-line">
+                {finalStory.content}
             </p>
+            
+            {/* Features: Check if dynamic or use hardcoded icons */}
             <div className="grid grid-cols-4 gap-8 mb-8 border-t border-blue-800 pt-8">
-              <div className="text-center"><Plane className="w-6 h-6 mx-auto mb-2 opacity-80" /><span className="text-[10px] uppercase tracking-wide opacity-70">On the move</span></div>
-              <div className="text-center"><Luggage className="w-6 h-6 mx-auto mb-2 opacity-80" /><span className="text-[10px] uppercase tracking-wide opacity-70">Travel Friendly</span></div>
-              <div className="text-center"><Shirt className="w-6 h-6 mx-auto mb-2 opacity-80" /><span className="text-[10px] uppercase tracking-wide opacity-70">Utilitarian</span></div>
-              <div className="text-center"><Leaf className="w-6 h-6 mx-auto mb-2 opacity-80" /><span className="text-[10px] uppercase tracking-wide opacity-70">Home Grown</span></div>
+                {finalFeatures ? (
+                    // Render DYNAMIC Features (Images from Backend)
+                    finalFeatures.map((feature: any, i: number) => (
+                        <div key={i} className="text-center flex flex-col items-center">
+                            <img src={feature.icon_image} alt={feature.title} className="w-6 h-6 mb-2 opacity-80 invert brightness-0 filter" /> 
+                            <span className="text-[10px] uppercase tracking-wide opacity-70">{feature.title}</span>
+                        </div>
+                    ))
+                ) : (
+                    // Render DEFAULT Features (Lucide Icons)
+                    defaultFeatures.map((f, i) => (
+                        <div key={i} className="text-center flex flex-col items-center">
+                            <f.icon className="w-6 h-6 mx-auto mb-2 opacity-80" />
+                            <span className="text-[10px] uppercase tracking-wide opacity-70">{f.title}</span>
+                        </div>
+                    ))
+                )}
             </div>
-          </div>
-          <div className="md:w-1/2 grid grid-cols-2">
-             <img src="/images/products/men-oversize.jpg" className="w-full h-full object-cover" />
-             <img src="/images/products/women-dryfit.jpg" className="w-full h-full object-cover" />
-          </div>
+        </div>
+        <div className="md:w-1/2 grid grid-cols-2">
+            {/* Show image if available, else placeholder */}
+            <img src={finalStory.image_1 || "/placeholder.jpg"} className="w-full h-full object-cover" />
+            <img src={finalStory.image_2 || "/placeholder.jpg"} className="w-full h-full object-cover" />
+        </div>
         </div>
       </section>
 
@@ -158,7 +221,6 @@ export default function Home() {
         <section className="max-w-7xl mx-auto px-4 py-16">
           <div className="flex justify-between items-end mb-8">
             <h2 className="text-3xl font-bold text-[#1F2B5B]">New Arrivals</h2>
-            {/* 🔥 FIX: Changed ?collection=new to ?badge=NEW */}
             <Link to="/products?badge=NEW" className="text-[#1F2B5B] font-bold hover:underline flex items-center text-sm">View All <ArrowRight className="w-4 h-4 ml-1"/></Link>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
@@ -172,7 +234,6 @@ export default function Home() {
         <section className="max-w-7xl mx-auto px-4 py-16 border-t">
           <div className="flex justify-between items-end mb-8">
             <h2 className="text-3xl font-bold text-[#1F2B5B]">Best Sellers</h2>
-            {/* 🔥 FIX: Changed ?collection=bestsellers to ?badge=BESTSELLER */}
             <Link to="/products?badge=BESTSELLER" className="text-[#1F2B5B] font-bold hover:underline flex items-center text-sm">View All <ArrowRight className="w-4 h-4 ml-1"/></Link>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6">

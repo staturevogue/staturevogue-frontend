@@ -125,12 +125,17 @@ export const storeService = {
     order_total: orderTotal 
   });
   return response.data;
+  
 },
 
 getSiteConfig: async () => {
   const response = await api.get("/store/config/");
   return response.data;
 },
+getWebContent: async () => {
+    const response = await api.get('/content/public/'); // Ensure this URL matches your backend urls.py
+    return response.data;
+  }
 };
 
 export const orderService = {
@@ -156,7 +161,9 @@ export const orderService = {
       order_status: newStatus 
     });
     return response.data;
-  }
+
+  },
+  
 };
 
 export default api;

@@ -47,7 +47,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       );
 
       if (existing) {
-        toast.success("Updated cart quantity!");
+        toast.success("Updated cart quantity!", { id: "cart-update" });
         return prev.map((i) =>
           i.productId === item.productId &&
           i.color === item.color &&
@@ -56,7 +56,8 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
             : i
         );
       }
-      toast.success("Added to cart!");
+      toast.success("Added to cart!", { id: "cart-update" });
+      return [...prev, { ...item, id: Date.now().toString() }];
       return [...prev, { ...item, id: Date.now().toString() }];
     });
   };

@@ -58,7 +58,6 @@ export default function ProductDetail() {
     init();
   }, [slug]);
 
-  // ... (Keep displayImages, availableSizes, useEffects, handleAddToCart, handleBuyNow, handleShare logic exactly as is) ...
   const displayImages = useMemo(() => {
     if (!product) return [];
     const safeColor = (c: string) => c?.toLowerCase().trim();
@@ -101,7 +100,13 @@ export default function ProductDetail() {
     return img ? img.url : product.images[0]?.url;
   };
 
-  const handleAddToCart = () => {
+  // 🔥 FIX: Prevent event bubbling to stop triple toasts
+  const handleAddToCart = (e?: React.MouseEvent) => {
+    if (e) {
+        e.preventDefault();
+        e.stopPropagation();
+    }
+
     if (!selectedSize) { toast.error("Please select a size"); return; }
     const sizeObj = availableSizes.find((s: any) => s.size === selectedSize);
     if (sizeObj && sizeObj.stock <= 0) { toast.error("This size is out of stock"); return; }
@@ -117,14 +122,16 @@ export default function ProductDetail() {
       size: selectedSize,
       quantity
     };
+    
     addToCart(cartItem);
-    toast.success("Added to cart");
+    
   };
 
   const handleBuyNow = () => {
     if (!selectedSize) { toast.error("Please select a size"); return; }
-    handleAddToCart();
-    navigate('/cart');
+    // Call without event to skip propagation logic
+    handleAddToCart(); 
+    navigate('/cart'); // Redirects to cart (or checkout)
   };
 
   const handleShare = async () => {
@@ -135,7 +142,6 @@ export default function ProductDetail() {
         toast.error("Failed to copy link");
     }
   };
-  // ... (End of kept logic) ...
 
   const handleSubmitReview = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -143,7 +149,6 @@ export default function ProductDetail() {
 
     setIsSubmittingReview(true);
     try {
-        // 🔥 Use storeService from api.ts
         await storeService.addReview(slug as string, {
             user_name: newReviewName,
             rating: newReviewRating,
@@ -162,13 +167,10 @@ export default function ProductDetail() {
 
     } catch (error: any) {
         console.error("Review Error:", error);
-        
-        // 🔥 Handle the specific "Not Purchased" error from backend
         if (error.response?.status === 400 && Array.isArray(error.response.data)) {
-             toast.error(error.response.data[0]); // "Verified Purchase Only..."
+             toast.error(error.response.data[0]); 
         } else if (error.response?.status === 401) {
              toast.error("Please log in to write a review.");
-             // navigate("/login"); // Optional: Auto redirect
         } else {
              toast.error("Failed to submit review. Have you purchased this item?");
         }
@@ -194,7 +196,6 @@ export default function ProductDetail() {
 
   return (
     <div className="min-h-screen bg-white pb-24 relative">
-      {/* ... (Keep the rest of your JSX exactly as it was) ... */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
         <div className="flex items-center text-xs text-gray-600">
           <span className="cursor-pointer hover:text-[#1F2B5B]" onClick={() => navigate('/')}>Home</span>

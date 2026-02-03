@@ -2,12 +2,12 @@ import React, { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom"; 
 import { 
   Package, MapPin, LogOut, Loader2, ChevronRight, 
-  Truck, CheckCircle, Clock, AlertCircle, Trash2, Star, Plus, 
+  CheckCircle, AlertCircle, Trash2, Star, Plus, 
   XCircle, RefreshCw, RotateCcw, X, User, ChevronDown, Phone, Pencil,
   UploadCloud, FileVideo, Copy
 } from "lucide-react";
 import { toast } from "sonner";
-import { orderService, authService,} from "../services/api";
+import { orderService, authService, } from "../services/api";
 import api from "../services/api";
 // --- INTERFACES ---
 interface OrderItem {
@@ -18,8 +18,9 @@ interface OrderItem {
   quantity: number;
   product_slug?: string;
   image?: string; 
-  status: string; // ✅ Item has its own status
-  exchange_coupon_code?: string; // ✅ Coupon per item
+  status: string; 
+  exchange_coupon_code?: string;
+  admin_comment?: string; // ✅ Added for Rejection Reason
 }
 
 interface Order {
@@ -55,7 +56,8 @@ const RETURN_REASONS = [
 
 const UserProfile = () => {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<'profile' | 'orders' | 'addresses'>('profile');
+  // ✅ 1. Default tab is now 'orders', removed 'profile' from types
+  const [activeTab, setActiveTab] = useState<'orders' | 'addresses'>('orders');
   
   // Data State
   const [userProfile, setUserProfile] = useState<any>(null);
@@ -82,7 +84,6 @@ const UserProfile = () => {
 
   // Action Modal State
   const [actionModalOpen, setActionModalOpen] = useState(false);
-  // ✅ Tracks the ITEM ID now, not Order ID
   const [selectedItemForAction, setSelectedItemForAction] = useState<number | null>(null); 
   const [actionType, setActionType] = useState<'return' | 'exchange'>('return');
   const [selectedReason, setSelectedReason] = useState("");
@@ -136,7 +137,6 @@ const UserProfile = () => {
     } catch (err: any) { toast.error("Failed to cancel"); }
   };
 
-  // ✅ Open Modal with ITEM ID
   const openActionModal = (itemId: number, type: 'return' | 'exchange') => {
       setSelectedItemForAction(itemId);
       setActionType(type);
@@ -168,14 +168,17 @@ const UserProfile = () => {
           formData.append('reason', selectedReason);
           formData.append('video', proofVideo); 
 
-          // ✅ Correct API: /orders/items/<ITEM_ID>/request-action/
           await api.post(`/orders/items/${selectedItemForAction}/request-action/`, formData, {
               headers: { 'Content-Type': 'multipart/form-data' }
           });
 
           toast.success("Request submitted successfully!");
           setActionModalOpen(false);
-          refreshOrders();
+
+          // 🔥 CRITICAL: Force a small delay to ensure DB commit, then refresh
+        setTimeout(() => {
+            refreshOrders(); 
+        }, 500);
       } catch (err: any) { 
           toast.error(err.response?.data?.error || "Request failed"); 
       } finally { 
@@ -264,32 +267,7 @@ const UserProfile = () => {
   // --- RENDER CONTENT ---
   const renderContent = () => {
     switch (activeTab) {
-        case 'profile':
-            return (
-                <div className="space-y-8 animate-fade-in">
-                    <div>
-                        <h2 className="text-2xl font-bold text-[#1F2B5B]">My Profile</h2>
-                        <p className="text-gray-500">Manage your personal information</p>
-                    </div>
-                    <div className="bg-gray-50 p-6 rounded-xl border border-gray-100 max-w-2xl">
-                        <div className="grid gap-6">
-                            <div>
-                                <label className="block text-xs font-bold text-gray-500 uppercase mb-1.5">Full Name</label>
-                                <div className="p-3 bg-white border border-gray-200 rounded-lg font-medium text-gray-900">
-                                    {userProfile?.first_name} {userProfile?.last_name}
-                                </div>
-                            </div>
-                            <div>
-                                <label className="block text-xs font-bold text-gray-500 uppercase mb-1.5">Email Address</label>
-                                <div className="p-3 bg-white border border-gray-200 rounded-lg font-medium text-gray-900 flex justify-between items-center">
-                                    {userProfile?.email}
-                                    <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full font-bold">Verified</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            );
+        // 🔥 REMOVED 'profile' CASE entirely
 
         case 'orders':
             const startIndex = (currentPage - 1) * ORDERS_PER_PAGE;
@@ -300,7 +278,9 @@ const UserProfile = () => {
                 <div className="space-y-6 animate-fade-in">
                     <div className="flex justify-between items-center mb-2">
                         <h2 className="text-2xl font-bold text-[#1F2B5B]">My Orders</h2>
-                        <span className="text-sm text-gray-500">Showing {allOrders.length} orders</span>
+                        <button onClick={refreshOrders} className="text-sm text-blue-600 hover:underline">
+                            ↻ Refresh Status
+                        </button>
                     </div>
 
                     {allOrders.length === 0 ? (
@@ -311,9 +291,7 @@ const UserProfile = () => {
                     ) : (
                         <div className="space-y-4">
                             {paginatedOrders.map((order, idx) => {
-                                // Order-level cancel (only if processing)
                                 const canCancelOrder = ['Processing', 'Pending'].includes(order.order_status);
-                                
                                 const globalIndex = startIndex + idx;
                                 const userOrderNumber = allOrders.length - globalIndex;
                                 const isExpanded = expandedOrderId === order.id;
@@ -339,16 +317,14 @@ const UserProfile = () => {
                                         {/* Content */}
                                         <div className="p-4">
                                             
-                                            {/* ITEMS LIST (With Actions) */}
-                                            {order.items.slice(0, isExpanded ? undefined : 1).map((item, i) => {
+                                            {/* 🔥 2. ITEMS LIST - Removed .slice() to show ALL items */}
+                                            {order.items.map((item, i) => {
                                                 const productUrl = item.product_slug ? `/product/${item.product_slug}` : "#";
                                                 const isDelivered = order.order_status === 'Delivered';
-                                                
-                                                // ✅ Item-Level Action Logic
                                                 const canAction = isDelivered && item.status === 'Ordered'; 
 
                                                 return (
-                                                    <div key={i} className="flex flex-col gap-3 py-3 border-b border-gray-50 last:border-0">
+                                                    <div key={i} className="flex flex-col gap-3 py-4 border-b border-gray-50 last:border-0">
                                                         <div className="flex gap-4 items-start">
                                                             {/* Image & Link */}
                                                             <Link to={productUrl} className="w-16 h-16 bg-gray-100 rounded-md overflow-hidden flex-shrink-0 border border-gray-200 block">
@@ -368,7 +344,6 @@ const UserProfile = () => {
                                                                 <p className="text-xs text-gray-500">{item.variant_label} | Qty: {item.quantity}</p>
                                                                 <p className="text-xs font-medium text-gray-900 mt-1">₹{parseFloat(item.price).toLocaleString()}</p>
                                                                 
-                                                                {/* ✅ ITEM STATUS BADGE */}
                                                                 {item.status !== 'Ordered' && (
                                                                     <span className={`inline-block mt-2 text-[10px] px-2 py-0.5 rounded font-bold uppercase tracking-wide 
                                                                         ${item.status.includes('Approved') ? 'bg-green-100 text-green-700' : 
@@ -380,7 +355,7 @@ const UserProfile = () => {
                                                             </div>
                                                         </div>
 
-                                                        {/* ✅ ACTION BUTTONS (Per Item) */}
+                                                        {/* Action Buttons */}
                                                         {canAction && (
                                                             <div className="flex gap-2 justify-end">
                                                                 <button onClick={() => openActionModal(item.id, 'return')} className="text-xs font-bold text-orange-600 hover:bg-orange-50 px-3 py-1.5 rounded border border-orange-100 transition-colors">
@@ -392,7 +367,18 @@ const UserProfile = () => {
                                                             </div>
                                                         )}
 
-                                                        {/* ✅ COUPON DISPLAY (Per Item) */}
+                                                        {/* ✅ 3. REJECTION REASON DISPLAY */}
+                                                        {(item.status === 'Return Rejected' || item.status === 'Exchange Rejected') && item.admin_comment && (
+                                                            <div className="mt-2 bg-red-50 border border-red-200 p-3 rounded-lg flex gap-3 items-start animate-in fade-in">
+                                                                <AlertCircle className="w-4 h-4 text-red-600 mt-0.5 flex-shrink-0" />
+                                                                <div>
+                                                                    <p className="text-xs font-bold text-red-800 uppercase">Request Rejected</p>
+                                                                    <p className="text-xs text-red-700 mt-1">{item.admin_comment}</p>
+                                                                </div>
+                                                            </div>
+                                                        )}
+
+                                                        {/* Coupon Display */}
                                                         {item.status === 'Exchange Approved' && item.exchange_coupon_code && (
                                                             <div className="bg-green-50 border border-green-200 p-3 rounded-lg flex justify-between items-center gap-2 animate-in fade-in">
                                                                 <div>
@@ -409,7 +395,7 @@ const UserProfile = () => {
                                                 );
                                             })}
 
-                                            {/* EXPANDED DETAILS (Address & Phone) */}
+                                            {/* EXPANDED DETAILS (Only for Address/Phone now) */}
                                             {isExpanded && (
                                                 <div className="mt-4 bg-gray-50 p-4 rounded-lg border border-gray-200 animate-in slide-in-from-top-2 duration-300">
                                                     <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">Delivery Details</h4>
@@ -441,7 +427,7 @@ const UserProfile = () => {
                                                     <ChevronDown className={`w-4 h-4 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
                                                 </button>
 
-                                                {/* Global Order Cancel (Only if processing) */}
+                                                {/* Global Order Cancel */}
                                                 {canCancelOrder && (
                                                     <div className="flex gap-3">
                                                         <button onClick={() => handleCancelOrder(order.id)} className="flex items-center gap-1 text-xs font-bold text-red-600 hover:bg-red-50 px-3 py-2 rounded-md border border-red-100 transition-colors">
@@ -539,7 +525,9 @@ const UserProfile = () => {
     <div className="min-h-screen bg-gray-50 pt-32 md:pt-36 pb-12">
       <div className="container mx-auto px-4 md:px-8 max-w-6xl">
         <div className="flex flex-col lg:flex-row gap-8">
+          {/* SIDEBAR */}
           <aside className="w-full lg:w-72 bg-white rounded-xl shadow-sm p-6 h-fit border border-gray-100">
+            {/* Header: Name and Email displayed here only */}
             <div className="flex items-center gap-4 mb-8 pb-6 border-b border-gray-100">
               <div className="w-12 h-12 rounded-full bg-[#1F2B5B] flex items-center justify-center text-white font-bold text-lg flex-shrink-0">
                 {userProfile?.first_name?.[0]}{userProfile?.last_name?.[0] || userProfile?.email?.[0]}
@@ -549,10 +537,13 @@ const UserProfile = () => {
                 <p className="text-base font-bold truncate text-gray-900" title={userProfile?.email}>
                     {userProfile?.first_name ? `${userProfile.first_name} ${userProfile.last_name || ''}` : userProfile?.email?.split('@')[0]}
                 </p>
+                <p className="text-xs text-gray-400 truncate">{userProfile?.email}</p>
               </div>
             </div>
+            
+            {/* Nav: Removed Profile Tab */}
             <nav className="space-y-1">
-              {[ { id: 'profile', label: 'My Profile', icon: User }, { id: 'orders', label: 'My Orders', icon: Package }, { id: 'addresses', label: 'Saved Addresses', icon: MapPin } ].map((item) => (
+              {[ { id: 'orders', label: 'My Orders', icon: Package }, { id: 'addresses', label: 'Saved Addresses', icon: MapPin } ].map((item) => (
                 <button key={item.id} onClick={() => setActiveTab(item.id as any)} className={`w-full flex items-center justify-between px-4 py-3 rounded-lg text-sm font-medium transition-all ${activeTab === item.id ? 'bg-[#1F2B5B] text-white shadow-md' : 'text-gray-600 hover:bg-gray-50 hover:text-[#1F2B5B]'}`}>
                   <div className="flex items-center gap-3"><item.icon className={`h-4 w-4 ${activeTab === item.id ? 'text-white' : 'text-gray-400'}`} />{item.label}</div>
                   {activeTab === item.id && <ChevronRight className="h-4 w-4 text-white/80" />}
@@ -563,6 +554,8 @@ const UserProfile = () => {
               </div>
             </nav>
           </aside>
+
+          {/* MAIN CONTENT */}
           <main className="flex-1 bg-white rounded-xl shadow-sm p-6 md:p-8 border border-gray-100 min-h-[500px]">
             {renderContent()}
           </main>
@@ -574,6 +567,7 @@ const UserProfile = () => {
             <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6 relative animate-in zoom-in-95 max-h-[90vh] overflow-y-auto">
                 <button onClick={() => setActionModalOpen(false)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
                 <h3 className="text-xl font-bold text-[#1F2B5B] mb-2 capitalize">Request {actionType}</h3>
+                
                 <p className="text-sm text-gray-500 mb-4">Please select a reason:</p>
                 <div className="space-y-2 mb-6">
                     {RETURN_REASONS.map((reason) => (

@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useCart } from "../context/CartContext";
 import { useNavigate } from "react-router-dom";
-import { Loader2, MapPin, Plus, CheckCircle, Home, Briefcase } from "lucide-react"; 
+import { Loader2, MapPin, Plus, CheckCircle, Home, Briefcase, Wallet, CreditCard } from "lucide-react"; 
 import { storeService, orderService, authService } from "../services/api"; 
 import { toast } from "sonner";
 
@@ -15,6 +15,9 @@ export default function Checkout() {
   const { cartItems, getCartTotal, clearCart } = useCart();
   const navigate = useNavigate();
   const cartTotal = getCartTotal();
+  
+  // 🔥 NEW STATE: Payment Method
+  const [paymentMethod, setPaymentMethod] = useState<'Online' | 'COD'>('Online');
 
   // --- STATE ---
   const [loadingConfig, setLoadingConfig] = useState(true);
@@ -101,11 +104,9 @@ export default function Checkout() {
       }));
   };
 
-  // 🔥 NEW: Handle clicking a card
   const selectAddress = (id: number | string) => {
       setSelectedAddressId(id);
       if (id === "new") {
-          // Clear fields for new entry
           setFormData(prev => ({
               ...prev,
               address: "", apartment: "", city: "", state: "", pinCode: "", phone: "", country: "India"
@@ -115,6 +116,7 @@ export default function Checkout() {
           if (selected) fillAddressForm(selected);
       }
   };
+  
 
   // --- 2. CALCULATIONS ---
   const calculations = useMemo(() => {
@@ -166,6 +168,7 @@ export default function Checkout() {
         const orderPayload = {
             ...formData,
             zip_code: formData.pinCode,
+            payment_method: paymentMethod, // 🔥 SEND PAYMENT METHOD
             items: cartItems.map(item => ({
                 product_id: item.productId, 
                 quantity: item.quantity,
@@ -177,6 +180,15 @@ export default function Checkout() {
         
         const orderResp = await orderService.createOrder(orderPayload);
 
+        // 🔥 HANDLE COD SUCCESS
+        if (orderResp.payment_method === 'COD') {
+            toast.success("Order Placed Successfully!");
+            clearCart();
+            navigate("/user");
+            return; // Stop here for COD
+        }
+
+        // 🔥 HANDLE ONLINE PAYMENT (Razorpay)
         const options = {
             key: orderResp.key,
             amount: orderResp.amount,
@@ -191,7 +203,7 @@ export default function Checkout() {
                         razorpay_payment_id: response.razorpay_payment_id,
                         razorpay_signature: response.razorpay_signature
                     });
-                    toast.success("Order Placed Successfully!");
+                    toast.success("Payment Successful!");
                     clearCart();
                     navigate("/user"); 
                 } catch (error) {
@@ -218,7 +230,7 @@ export default function Checkout() {
 
     } catch (error) {
         console.error(error);
-        toast.error("Payment initiation failed.");
+        toast.error("Order placement failed.");
     } finally {
         setIsPaying(false);
     }
@@ -240,7 +252,6 @@ export default function Checkout() {
                   <MapPin className="w-5 h-5 text-[#1F2B5B]" /> Delivery Address
               </h2>
 
-              {/* 🔥 NEW: CARD GRID UI for Addresses */}
               {savedAddresses.length > 0 && (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
                       {savedAddresses.map((addr) => {
@@ -266,16 +277,12 @@ export default function Checkout() {
                                   </div>
                                   <p className="text-sm font-medium text-gray-900">{addr.first_name} {addr.last_name}</p>
                                   <p className="text-xs text-gray-500 mt-1 line-clamp-2">
-                                      {addr.address}
-                                      {addr.apartment ? `, ${addr.apartment}` : ''}
-                                      <br/>
-                                      {addr.city}, {addr.zip_code}
+                                      {addr.address}, {addr.city}, {addr.zip_code}
                                   </p>
                               </div>
                           );
                       })}
                       
-                      {/* "Add New" Card */}
                       <div 
                           onClick={() => selectAddress("new")}
                           className={`flex flex-col items-center justify-center p-4 border border-dashed rounded-xl cursor-pointer transition-all ${
@@ -290,33 +297,49 @@ export default function Checkout() {
                   </div>
               )}
 
-              {/* Form Fields (Always visible for editing or new) */}
               <div className="space-y-4 animate-in slide-in-from-top-2">
-                <input type="email" name="email" placeholder="Email" value={formData.email} onChange={handleInputChange} className="w-full p-3 border rounded-lg focus:outline-none focus:border-[#1F2B5B]" required />
                 <div className="grid grid-cols-2 gap-4">
                     <input type="text" name="firstName" placeholder="First Name" value={formData.firstName} onChange={handleInputChange} className="p-3 border rounded-lg focus:outline-none focus:border-[#1F2B5B]" required />
                     <input type="text" name="lastName" placeholder="Last Name" value={formData.lastName} onChange={handleInputChange} className="p-3 border rounded-lg focus:outline-none focus:border-[#1F2B5B]" required />
                 </div>
                 <input type="text" name="address" placeholder="Street Address" value={formData.address} onChange={handleInputChange} className="w-full p-3 border rounded-lg focus:outline-none focus:border-[#1F2B5B]" required />
-                <input type="text" name="apartment" placeholder="Apartment, suite, etc. (optional)" value={formData.apartment} onChange={handleInputChange} className="w-full p-3 border rounded-lg focus:outline-none focus:border-[#1F2B5B]" />
-                
-                <div className="grid grid-cols-2 gap-4">
-                    <input type="text" name="city" placeholder="City" value={formData.city} onChange={handleInputChange} className="p-3 border rounded-lg focus:outline-none focus:border-[#1F2B5B]" required />
-                    <input type="text" name="pinCode" placeholder="PIN Code" value={formData.pinCode} onChange={handleInputChange} className="p-3 border rounded-lg focus:outline-none focus:border-[#1F2B5B]" required />
-                </div>
+                <input type="text" name="city" placeholder="City" value={formData.city} onChange={handleInputChange} className="w-full p-3 border rounded-lg focus:outline-none focus:border-[#1F2B5B]" required />
                 <div className="grid grid-cols-2 gap-4">
                     <input type="text" name="state" placeholder="State" value={formData.state} onChange={handleInputChange} className="p-3 border rounded-lg focus:outline-none focus:border-[#1F2B5B]" required />
-                    <input type="tel" name="phone" placeholder="Phone Number" value={formData.phone} onChange={handleInputChange} className="p-3 border rounded-lg focus:outline-none focus:border-[#1F2B5B]" required />
+                    <input type="text" name="pinCode" placeholder="PIN Code" value={formData.pinCode} onChange={handleInputChange} className="p-3 border rounded-lg focus:outline-none focus:border-[#1F2B5B]" required />
                 </div>
+                <input type="tel" name="phone" placeholder="Phone Number" value={formData.phone} onChange={handleInputChange} className="w-full p-3 border rounded-lg focus:outline-none focus:border-[#1F2B5B]" required />
               </div>
             </div>
 
+            {/* 🔥 PAYMENT METHOD SELECTION */}
+            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+                <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
+                    <Wallet className="w-5 h-5 text-[#1F2B5B]" /> Payment Method
+                </h2>
+                <div className="space-y-3">
+                    <label className={`flex items-center p-4 border rounded-xl cursor-pointer transition-all ${paymentMethod === 'Online' ? 'border-[#1F2B5B] bg-blue-50 ring-1 ring-[#1F2B5B]' : 'border-gray-200'}`}>
+                        <input type="radio" name="payment" checked={paymentMethod === 'Online'} onChange={() => setPaymentMethod('Online')} className="w-4 h-4 text-[#1F2B5B] focus:ring-[#1F2B5B]" />
+                        <span className="ml-3 flex items-center gap-2 font-medium text-gray-700">
+                            <CreditCard className="w-4 h-4 text-gray-500" /> Online Payment (UPI, Cards, NetBanking)
+                        </span>
+                    </label>
+
+                    <label className={`flex items-center p-4 border rounded-xl cursor-pointer transition-all ${paymentMethod === 'COD' ? 'border-[#1F2B5B] bg-blue-50 ring-1 ring-[#1F2B5B]' : 'border-gray-200'}`}>
+                        <input type="radio" name="payment" checked={paymentMethod === 'COD'} onChange={() => setPaymentMethod('COD')} className="w-4 h-4 text-[#1F2B5B] focus:ring-[#1F2B5B]" />
+                        <span className="ml-3 flex items-center gap-2 font-medium text-gray-700">
+                            <Wallet className="w-4 h-4 text-gray-500" /> Cash on Delivery (COD)
+                        </span>
+                    </label>
+                </div>
+            </div>
+
             <button onClick={handlePayment} disabled={isPaying} className="w-full bg-[#1F2B5B] text-white py-4 rounded-lg font-bold hover:bg-[#283747] transition disabled:opacity-70">
-                {isPaying ? <span className="flex items-center justify-center gap-2"><Loader2 className="animate-spin w-5 h-5"/> Processing...</span> : `Pay ₹${calculations.finalTotal.toLocaleString()}`}
+                {isPaying ? <span className="flex items-center justify-center gap-2"><Loader2 className="animate-spin w-5 h-5"/> Processing...</span> : `Place Order • ₹${calculations.finalTotal.toLocaleString()}`}
             </button>
           </div>
 
-          {/* RIGHT: SUMMARY (Unchanged from previous) */}
+          {/* RIGHT: SUMMARY */}
           <div>
             <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 sticky top-24">
               <h2 className="text-lg font-bold mb-4">Order Summary</h2>

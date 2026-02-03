@@ -14,26 +14,35 @@ export default function Header() {
   const mobileSearchInputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
 
-  // Data State
   const [menCategories, setMenCategories] = useState<any[]>([]);
   const [womenCategories, setWomenCategories] = useState<any[]>([]);
   const [collections, setCollections] = useState<any[]>([]);
   const [expandedMenu, setExpandedMenu] = useState<string | null>(null);
+  
+  // ✅ DEFAULT ANNOUNCEMENT
+  const [announcement, setAnnouncement] = useState("FREE SHIPPING ON ORDERS OVER ₹999 | EASY RETURNS");
 
-  // Fetch Data
   useEffect(() => {
     const fetchMenuData = async () => {
       try {
-        const [catsData, colsData] = await Promise.all([
+        const [catsData, colsData, contentData] = await Promise.all([
           storeService.getCategories(),
-          storeService.getCollections()
+          storeService.getCollections(),
+          storeService.getWebContent() 
         ]);
+        
         const allCats = catsData.results || catsData;
         const allCols = colsData.results || colsData;
 
         setMenCategories(allCats.filter((c: any) => c.gender === 'Men' || c.gender === 'All'));
         setWomenCategories(allCats.filter((c: any) => c.gender === 'Women' || c.gender === 'All'));
         setCollections(allCols);
+
+        // ✅ Update ONLY if dynamic content exists
+        if (contentData.announcement && contentData.announcement.text) {
+            setAnnouncement(contentData.announcement.text);
+        }
+
       } catch (error) {
         console.error("Menu data error", error);
       }
@@ -41,7 +50,8 @@ export default function Header() {
     fetchMenuData();
   }, []);
 
-  // Focus mobile search input
+  // ... (Keep remaining logic: handleSearch, toggleMobileSubmenu, useEffect for focus, return statement) ...
+  // (Paste the rest of your Header.tsx render logic here, it is unchanged)
   useEffect(() => {
     if (isMobileSearchOpen && mobileSearchInputRef.current) {
         setTimeout(() => mobileSearchInputRef.current?.focus(), 100);
@@ -65,14 +75,13 @@ export default function Header() {
       
       {/* Promotion Bar */}
       <div className="bg-[#1F2B5B] text-white text-[10px] sm:text-xs py-2 text-center tracking-widest font-medium px-4">
-        FREE SHIPPING ON ORDERS OVER ₹999 | EASY RETURNS
+        {announcement}
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Added 'relative' to parent for absolute positioning of logo on mobile */}
         <div className="relative flex items-center justify-between h-16 md:h-20">
           
-          {/* --- LEFT: Mobile Menu Button (Visible only on Mobile) --- */}
+          {/* --- LEFT: Mobile Menu Button --- */}
           <div className="flex items-center md:hidden z-20">
             <button 
               onClick={() => setIsMenuOpen(true)} 
@@ -82,26 +91,22 @@ export default function Header() {
             </button>
           </div>
 
-          {/* --- LOGO: Absolute Center on Mobile, Static Left on Desktop --- */}
+          {/* --- LOGO --- */}
           <Link to="/" className="flex items-center gap-2 
               absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 
               md:static md:translate-x-0 md:translate-y-0 md:flex-shrink-0 z-10">
-               {/* Logo Image - Removed Border */}
                <img 
                  src="/logo.jpeg" 
                  alt="Logo" 
                  className="h-10 w-10 md:h-12 md:w-12 rounded-full object-cover" 
                />
-               {/* Logo Text */}
                <span className="text-lg sm:text-xl md:text-2xl font-bold tracking-tighter text-[#1F2B5B] uppercase whitespace-nowrap">
                  STATURE VOGUE
                </span>
           </Link>
 
-          {/* --- CENTER: Desktop Navigation (Hidden on Mobile) --- */}
-          {/* Added margin-left to separate from logo on desktop */}
+          {/* --- CENTER: Desktop Navigation --- */}
           <nav className="hidden md:flex items-center space-x-6 lg:space-x-8 ml-8">
-            
             <Link to="/products?badge=NEW" className="text-sm font-bold text-red-600 hover:text-red-700 uppercase tracking-wide whitespace-nowrap">
               New Arrivals
             </Link>
@@ -160,14 +165,9 @@ export default function Header() {
             </div>
           </nav>
 
-          {/* --- RIGHT ACTIONS: Search, User, Cart --- */}
-          {/* ml-auto ensures right alignment on mobile since logo is absolute */}
+          {/* --- RIGHT ACTIONS --- */}
           <div className="flex items-center gap-2 sm:gap-4 ml-auto md:ml-0 z-20">
-            
-            {/* DESKTOP SEARCH BAR */}
-
-
-
+            {/* Desktop Search */}
             <div className="hidden md:block w-full max-w-[200px] lg:max-w-[260px]">
               <form onSubmit={handleSearch} className="relative group">
                 <input
@@ -183,7 +183,7 @@ export default function Header() {
               </form>
             </div>
 
-            {/* MOBILE SEARCH ICON */}
+            {/* Mobile Search Toggle */}
             <button 
               onClick={() => setIsMobileSearchOpen(!isMobileSearchOpen)} 
               className="md:hidden p-1 text-gray-700 hover:text-[#1F2B5B] transition-colors"
@@ -191,12 +191,12 @@ export default function Header() {
               {isMobileSearchOpen ? <X className="w-5 h-5" /> : <Search className="w-5 h-5" />}
             </button>
 
-            {/* PROFILE (Desktop Only) */}
+            {/* Profile */}
             <Link to="/user" className="p-1 text-gray-700 hover:text-[#1F2B5B] transition-colors hidden md:block">
               <User className="w-5 h-5" />
             </Link>
             
-            {/* CART (Always Visible) */}
+            {/* Cart */}
             <Link to="/cart" className="p-1 text-gray-700 hover:text-[#1F2B5B] transition-colors relative">
               <ShoppingBag className="w-5 h-5" />
               {cartCount > 0 && (
@@ -209,7 +209,7 @@ export default function Header() {
         </div>
       </div>
 
-      {/* --- MOBILE SEARCH DROPDOWN (Under Header) --- */}
+      {/* --- MOBILE SEARCH DROPDOWN --- */}
       {isMobileSearchOpen && (
         <div className="md:hidden absolute top-full left-0 right-0 border-t border-gray-100 bg-white p-4 shadow-lg animate-in slide-in-from-top-2 z-30">
           <form onSubmit={handleSearch} className="relative">
@@ -228,13 +228,12 @@ export default function Header() {
         </div>
       )}
 
-      {/* --- MOBILE MENU SIDEBAR --- */}
+      {/* --- MOBILE MENU --- */}
       {isMenuOpen && (
         <div className="fixed inset-0 z-50 md:hidden">
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setIsMenuOpen(false)}></div>
           <div className="relative bg-white w-[85%] max-w-[320px] h-full shadow-2xl overflow-y-auto animate-slide-right flex flex-col">
             
-            {/* Menu Header */}
             <div className="p-5 border-b flex justify-between items-center bg-gray-50">
               <span className="font-bold text-lg text-[#1F2B5B] tracking-tight">MENU</span>
               <button onClick={() => setIsMenuOpen(false)}><X className="w-6 h-6 text-gray-500" /></button>
@@ -242,7 +241,6 @@ export default function Header() {
 
             <div className="flex-1 p-5 space-y-2">
               
-              {/* MOVED MY ACCOUNT TO TOP */}
               <Link 
                 to="/user" 
                 className="flex items-center gap-3 py-3 font-bold text-[#1F2B5B] border-b-2 border-[#1F2B5B] mb-4 bg-blue-50/50 -mx-5 px-5" 
