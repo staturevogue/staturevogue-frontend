@@ -4,11 +4,12 @@ import {
   Package, MapPin, LogOut, Loader2, ChevronRight, 
   CheckCircle, AlertCircle, Trash2, Star, Plus, 
   XCircle, RefreshCw, RotateCcw, X, User, ChevronDown, Phone, Pencil,
-  UploadCloud, FileVideo, Copy
+  UploadCloud, FileVideo, Copy, Truck, ExternalLink
 } from "lucide-react";
 import { toast } from "sonner";
-import { orderService, authService, } from "../services/api";
+import { orderService, authService,} from "../services/api"; // Ensure api is imported
 import api from "../services/api";
+
 // --- INTERFACES ---
 interface OrderItem {
   id: number;
@@ -20,7 +21,7 @@ interface OrderItem {
   image?: string; 
   status: string; 
   exchange_coupon_code?: string;
-  admin_comment?: string; // ✅ Added for Rejection Reason
+  admin_comment?: string; 
 }
 
 interface Order {
@@ -32,6 +33,7 @@ interface Order {
   shipping_address: string;
   phone: string;
   items: OrderItem[];
+  tracking_link?: string; // ✅ Added tracking link
 }
 
 interface SavedAddress {
@@ -56,7 +58,6 @@ const RETURN_REASONS = [
 
 const UserProfile = () => {
   const navigate = useNavigate();
-  // ✅ 1. Default tab is now 'orders', removed 'profile' from types
   const [activeTab, setActiveTab] = useState<'orders' | 'addresses'>('orders');
   
   // Data State
@@ -128,13 +129,19 @@ const UserProfile = () => {
       setAllOrders(Array.isArray(updated) ? updated : updated.results);
   };
 
+  // 🔥 UPDATED CANCEL HANDLER with better error messages
   const handleCancelOrder = async (orderId: number) => {
     if (!window.confirm("Are you sure? Refund will be initiated.")) return;
+    
     try {
       await api.post(`/orders/${orderId}/cancel/`);
-      toast.success("Order cancelled");
+      toast.success("Order cancelled successfully");
       refreshOrders();
-    } catch (err: any) { toast.error("Failed to cancel"); }
+    } catch (err: any) { 
+        // Show the specific error from backend (e.g., "Cannot cancel shipped order")
+        const errorMessage = err.response?.data?.error || "Failed to cancel order. Please try again.";
+        toast.error(errorMessage); 
+    }
   };
 
   const openActionModal = (itemId: number, type: 'return' | 'exchange') => {
@@ -175,10 +182,9 @@ const UserProfile = () => {
           toast.success("Request submitted successfully!");
           setActionModalOpen(false);
 
-          // 🔥 CRITICAL: Force a small delay to ensure DB commit, then refresh
-        setTimeout(() => {
+          setTimeout(() => {
             refreshOrders(); 
-        }, 500);
+          }, 500);
       } catch (err: any) { 
           toast.error(err.response?.data?.error || "Request failed"); 
       } finally { 
@@ -267,8 +273,6 @@ const UserProfile = () => {
   // --- RENDER CONTENT ---
   const renderContent = () => {
     switch (activeTab) {
-        // 🔥 REMOVED 'profile' CASE entirely
-
         case 'orders':
             const startIndex = (currentPage - 1) * ORDERS_PER_PAGE;
             const paginatedOrders = allOrders.slice(startIndex, startIndex + ORDERS_PER_PAGE);
@@ -306,18 +310,30 @@ const UserProfile = () => {
                                                     Placed on {new Date(order.created_at).toLocaleDateString('en-IN', { year: 'numeric', month: 'short', day: 'numeric' })}
                                                 </p>
                                             </div>
-                                            <div className="flex items-center gap-3">
+                                            <div className="flex items-center gap-3 flex-wrap justify-end">
                                                 <span className="font-bold text-gray-900">₹{parseFloat(order.total_amount).toLocaleString()}</span>
                                                 <span className={`px-3 py-1 text-xs font-bold rounded-full border ${getStatusColor(order.order_status)}`}>
                                                     {order.order_status}
                                                 </span>
+
+                                                {/* 🔥 TRACKING BUTTON - Shows only if link exists */}
+                                                {order.tracking_link && (
+                                                    <a 
+                                                        href={order.tracking_link} 
+                                                        target="_blank" 
+                                                        rel="noopener noreferrer"
+                                                        className="flex items-center gap-1 bg-[#1F2B5B] text-white px-3 py-1.5 text-xs font-bold rounded-lg hover:bg-[#283747] transition-colors shadow-sm"
+                                                    >
+                                                        <Truck className="w-3 h-3" /> Track Order
+                                                    </a>
+                                                )}
                                             </div>
                                         </div>
 
                                         {/* Content */}
                                         <div className="p-4">
                                             
-                                            {/* 🔥 2. ITEMS LIST - Removed .slice() to show ALL items */}
+                                            {/* ITEMS LIST */}
                                             {order.items.map((item, i) => {
                                                 const productUrl = item.product_slug ? `/product/${item.product_slug}` : "#";
                                                 const isDelivered = order.order_status === 'Delivered';
@@ -367,7 +383,7 @@ const UserProfile = () => {
                                                             </div>
                                                         )}
 
-                                                        {/* ✅ 3. REJECTION REASON DISPLAY */}
+                                                        {/* REJECTION REASON DISPLAY */}
                                                         {(item.status === 'Return Rejected' || item.status === 'Exchange Rejected') && item.admin_comment && (
                                                             <div className="mt-2 bg-red-50 border border-red-200 p-3 rounded-lg flex gap-3 items-start animate-in fade-in">
                                                                 <AlertCircle className="w-4 h-4 text-red-600 mt-0.5 flex-shrink-0" />
@@ -395,7 +411,7 @@ const UserProfile = () => {
                                                 );
                                             })}
 
-                                            {/* EXPANDED DETAILS (Only for Address/Phone now) */}
+                                            {/* EXPANDED DETAILS */}
                                             {isExpanded && (
                                                 <div className="mt-4 bg-gray-50 p-4 rounded-lg border border-gray-200 animate-in slide-in-from-top-2 duration-300">
                                                     <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">Delivery Details</h4>
@@ -525,9 +541,7 @@ const UserProfile = () => {
     <div className="min-h-screen bg-gray-50 pt-32 md:pt-36 pb-12">
       <div className="container mx-auto px-4 md:px-8 max-w-6xl">
         <div className="flex flex-col lg:flex-row gap-8">
-          {/* SIDEBAR */}
           <aside className="w-full lg:w-72 bg-white rounded-xl shadow-sm p-6 h-fit border border-gray-100">
-            {/* Header: Name and Email displayed here only */}
             <div className="flex items-center gap-4 mb-8 pb-6 border-b border-gray-100">
               <div className="w-12 h-12 rounded-full bg-[#1F2B5B] flex items-center justify-center text-white font-bold text-lg flex-shrink-0">
                 {userProfile?.first_name?.[0]}{userProfile?.last_name?.[0] || userProfile?.email?.[0]}
@@ -540,8 +554,6 @@ const UserProfile = () => {
                 <p className="text-xs text-gray-400 truncate">{userProfile?.email}</p>
               </div>
             </div>
-            
-            {/* Nav: Removed Profile Tab */}
             <nav className="space-y-1">
               {[ { id: 'orders', label: 'My Orders', icon: Package }, { id: 'addresses', label: 'Saved Addresses', icon: MapPin } ].map((item) => (
                 <button key={item.id} onClick={() => setActiveTab(item.id as any)} className={`w-full flex items-center justify-between px-4 py-3 rounded-lg text-sm font-medium transition-all ${activeTab === item.id ? 'bg-[#1F2B5B] text-white shadow-md' : 'text-gray-600 hover:bg-gray-50 hover:text-[#1F2B5B]'}`}>
@@ -554,8 +566,6 @@ const UserProfile = () => {
               </div>
             </nav>
           </aside>
-
-          {/* MAIN CONTENT */}
           <main className="flex-1 bg-white rounded-xl shadow-sm p-6 md:p-8 border border-gray-100 min-h-[500px]">
             {renderContent()}
           </main>
@@ -567,7 +577,6 @@ const UserProfile = () => {
             <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6 relative animate-in zoom-in-95 max-h-[90vh] overflow-y-auto">
                 <button onClick={() => setActionModalOpen(false)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
                 <h3 className="text-xl font-bold text-[#1F2B5B] mb-2 capitalize">Request {actionType}</h3>
-                
                 <p className="text-sm text-gray-500 mb-4">Please select a reason:</p>
                 <div className="space-y-2 mb-6">
                     {RETURN_REASONS.map((reason) => (
@@ -577,7 +586,6 @@ const UserProfile = () => {
                         </label>
                     ))}
                 </div>
-                
                 <p className="text-sm text-gray-500 mb-2">Upload Opening Video (Mandatory):</p>
                 <div className="mb-6">
                     <label className={`flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-lg cursor-pointer transition-colors ${proofVideo ? 'border-[#1F2B5B] bg-blue-50' : 'border-gray-300 hover:bg-gray-50'}`}>
@@ -599,7 +607,6 @@ const UserProfile = () => {
                         <input type="file" className="hidden" accept="video/*" onChange={handleFileChange} />
                     </label>
                 </div>
-
                 <button onClick={handleSubmitAction} disabled={isSubmittingAction || !selectedReason || !proofVideo} className="w-full bg-[#1F2B5B] text-white py-3 rounded-lg font-bold text-sm hover:bg-[#283747] disabled:bg-gray-300 disabled:cursor-not-allowed">
                     {isSubmittingAction ? "Uploading & Submitting..." : "Submit Request"}
                 </button>

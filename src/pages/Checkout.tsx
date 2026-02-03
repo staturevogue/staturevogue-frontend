@@ -16,15 +16,14 @@ export default function Checkout() {
   const navigate = useNavigate();
   const cartTotal = getCartTotal();
   
-  // 🔥 NEW STATE: Payment Method
   const [paymentMethod, setPaymentMethod] = useState<'Online' | 'COD'>('Online');
 
-  // --- STATE ---
   const [loadingConfig, setLoadingConfig] = useState(true);
   const [config, setConfig] = useState({
     shipping_flat_rate: 0,
     shipping_free_above: 0,
     tax_rate_percentage: 0,
+    cod_extra_fee: 50, // Default fallback
   });
 
   const [discountCode, setDiscountCode] = useState("");
@@ -58,6 +57,7 @@ export default function Checkout() {
           shipping_flat_rate: parseFloat(configData.shipping_flat_rate) || 0,
           shipping_free_above: parseFloat(configData.shipping_free_above) || 0,
           tax_rate_percentage: parseFloat(configData.tax_rate_percentage) || 0,
+          cod_extra_fee: parseFloat(configData.cod_extra_fee) || 50, // Fetch or default to 50
         });
         
         try {
@@ -117,7 +117,6 @@ export default function Checkout() {
       }
   };
   
-
   // --- 2. CALCULATIONS ---
   const calculations = useMemo(() => {
     const isFreeShipping = config.shipping_flat_rate === 0 || (config.shipping_free_above > 0 && cartTotal >= config.shipping_free_above);
@@ -130,10 +129,14 @@ export default function Checkout() {
 
     const taxableAmount = Math.max(0, cartTotal - discountAmount);
     const taxAmount = (taxableAmount * config.tax_rate_percentage) / 100;
-    const finalTotal = taxableAmount + taxAmount + shippingCost;
+    
+    // 🔥 COD LOGIC
+    const codFee = paymentMethod === 'COD' ? config.cod_extra_fee : 0;
 
-    return { shippingCost, isFreeShipping, discountAmount, taxAmount, finalTotal };
-  }, [cartTotal, config, couponData]);
+    const finalTotal = taxableAmount + taxAmount + shippingCost + codFee;
+
+    return { shippingCost, isFreeShipping, discountAmount, taxAmount, codFee, finalTotal };
+  }, [cartTotal, config, couponData, paymentMethod]); // Updates when paymentMethod changes
 
   // --- 3. HANDLERS ---
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -168,7 +171,7 @@ export default function Checkout() {
         const orderPayload = {
             ...formData,
             zip_code: formData.pinCode,
-            payment_method: paymentMethod, // 🔥 SEND PAYMENT METHOD
+            payment_method: paymentMethod, 
             items: cartItems.map(item => ({
                 product_id: item.productId, 
                 quantity: item.quantity,
@@ -180,15 +183,13 @@ export default function Checkout() {
         
         const orderResp = await orderService.createOrder(orderPayload);
 
-        // 🔥 HANDLE COD SUCCESS
         if (orderResp.payment_method === 'COD') {
             toast.success("Order Placed Successfully!");
             clearCart();
             navigate("/user");
-            return; // Stop here for COD
+            return;
         }
 
-        // 🔥 HANDLE ONLINE PAYMENT (Razorpay)
         const options = {
             key: orderResp.key,
             amount: orderResp.amount,
@@ -312,7 +313,7 @@ export default function Checkout() {
               </div>
             </div>
 
-            {/* 🔥 PAYMENT METHOD SELECTION */}
+            {/* PAYMENT METHOD SELECTION */}
             <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
                 <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
                     <Wallet className="w-5 h-5 text-[#1F2B5B]" /> Payment Method
@@ -327,9 +328,15 @@ export default function Checkout() {
 
                     <label className={`flex items-center p-4 border rounded-xl cursor-pointer transition-all ${paymentMethod === 'COD' ? 'border-[#1F2B5B] bg-blue-50 ring-1 ring-[#1F2B5B]' : 'border-gray-200'}`}>
                         <input type="radio" name="payment" checked={paymentMethod === 'COD'} onChange={() => setPaymentMethod('COD')} className="w-4 h-4 text-[#1F2B5B] focus:ring-[#1F2B5B]" />
-                        <span className="ml-3 flex items-center gap-2 font-medium text-gray-700">
-                            <Wallet className="w-4 h-4 text-gray-500" /> Cash on Delivery (COD)
-                        </span>
+                        <div className="ml-3">
+                            <span className="flex items-center gap-2 font-medium text-gray-700">
+                                <Wallet className="w-4 h-4 text-gray-500" /> Cash on Delivery (COD)
+                            </span>
+                            {/* 🔥 Show Fee Notice */}
+                            {config.cod_extra_fee > 0 && (
+                                <p className="text-xs text-orange-600 font-medium mt-1">+ ₹{config.cod_extra_fee} handling fee</p>
+                            )}
+                        </div>
                     </label>
                 </div>
             </div>
@@ -342,9 +349,9 @@ export default function Checkout() {
           {/* RIGHT: SUMMARY */}
           <div>
             <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 sticky top-24">
-              <h2 className="text-lg font-bold mb-4">Order Summary</h2>
+              <h2 className="text-lg font-bold mb-4 text-gray-900">Order Summary</h2>
               
-              <div className="space-y-3 mb-6 max-h-[300px] overflow-y-auto pr-2 scrollbar-thin">
+              <div className="space-y-4 mb-6 max-h-[300px] overflow-y-auto pr-2 scrollbar-thin">
                 {cartItems.map((item) => (
                   <div key={item.id} className="flex gap-4 border-b border-gray-50 pb-3 last:border-0">
                     <div className="w-16 h-16 bg-gray-100 rounded-md overflow-hidden flex-shrink-0 border border-gray-200">
@@ -359,12 +366,11 @@ export default function Checkout() {
                 ))}
               </div>
 
-              {/* Coupon */}
               <div className="flex gap-2 mb-4">
                 <input 
                     type="text" 
-                    placeholder="Discount Code" 
-                    className="flex-1 p-2 border rounded uppercase text-sm focus:outline-none focus:border-[#1F2B5B]"
+                    placeholder="DISCOUNT CODE" 
+                    className="flex-1 p-2 border border-gray-300 rounded uppercase text-sm focus:outline-none focus:border-[#1F2B5B]"
                     value={discountCode}
                     onChange={(e) => setDiscountCode(e.target.value)}
                 />
@@ -379,22 +385,34 @@ export default function Checkout() {
               
               {couponData && <div className="bg-green-50 text-green-700 text-xs p-2 rounded mb-4 text-center">Coupon applied! You saved ₹{calculations.discountAmount}</div>}
 
-              {/* Totals */}
-              <div className="border-t pt-4 space-y-2 text-sm">
+              {/* Totals Section */}
+              <div className="border-t border-gray-200 pt-4 space-y-3 text-sm">
                 <div className="flex justify-between text-gray-600"><span>Subtotal</span><span>₹{cartTotal.toLocaleString()}</span></div>
+                
                 <div className="flex justify-between text-gray-600">
                     <span>Shipping</span>
-                    <span className={calculations.isFreeShipping ? "text-green-600 font-medium" : ""}>
+                    <span className={calculations.isFreeShipping ? "text-green-600 font-bold" : ""}>
                         {calculations.isFreeShipping ? "FREE" : `₹${calculations.shippingCost}`}
                     </span>
                 </div>
+
                 {calculations.taxAmount > 0 && (
                     <div className="flex justify-between text-gray-600"><span>GST ({config.tax_rate_percentage}%)</span><span>₹{calculations.taxAmount.toFixed(2)}</span></div>
                 )}
+                
+                {/* 🔥 DYNAMIC COD FEE ROW */}
+                {paymentMethod === 'COD' && (
+                    <div className="flex justify-between text-gray-600">
+                        <span>COD Handling Fee</span>
+                        <span>₹{calculations.codFee}</span>
+                    </div>
+                )}
+
                 {calculations.discountAmount > 0 && (
                     <div className="flex justify-between text-green-600 font-medium"><span>Discount</span><span>-₹{calculations.discountAmount}</span></div>
                 )}
-                <div className="flex justify-between font-bold text-lg pt-3 border-t mt-2 text-[#1F2B5B]">
+                
+                <div className="flex justify-between font-bold text-xl pt-3 border-t border-gray-200 mt-2 text-[#1F2B5B]">
                     <span>Total</span>
                     <span>₹{calculations.finalTotal.toLocaleString()}</span>
                 </div>
