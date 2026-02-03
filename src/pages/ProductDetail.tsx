@@ -2,7 +2,8 @@ import { useState, useEffect, useMemo } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom"; 
 import {
   Star, ChevronLeft, ChevronRight, Check, 
-  Truck, RotateCcw, Shield, User, ShoppingBag, Loader2, PenSquare, Share2, X
+  Truck, RotateCcw, Shield, User, ShoppingBag, Loader2, PenSquare, 
+  Share2, X, Copy, MessageCircle, Twitter
 } from "lucide-react";
 import { useCart } from "../context/CartContext";
 import { storeService } from "../services/api"; 
@@ -32,6 +33,9 @@ export default function ProductDetail() {
   const [newReviewComment, setNewReviewComment] = useState("");
   const [newReviewName, setNewReviewName] = useState(""); 
   const [isSubmittingReview, setIsSubmittingReview] = useState(false);
+
+  // --- 🔥 SHARE STATE ---
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
 
   useEffect(() => {
     const init = async () => {
@@ -100,16 +104,15 @@ export default function ProductDetail() {
     return img ? img.url : product.images[0]?.url;
   };
 
-  // 🔥 FIX: Prevent event bubbling to stop triple toasts
   const handleAddToCart = (e?: React.MouseEvent) => {
     if (e) {
         e.preventDefault();
         e.stopPropagation();
     }
 
-    if (!selectedSize) { toast.error("Please select a size"); return; }
+    if (!selectedSize) { toast.error("Please select a size", { id: "size-error" }); return; }
     const sizeObj = availableSizes.find((s: any) => s.size === selectedSize);
-    if (sizeObj && sizeObj.stock <= 0) { toast.error("This size is out of stock"); return; }
+    if (sizeObj && sizeObj.stock <= 0) { toast.error("This size is out of stock", { id: "stock-error" }); return; }
 
     const cartItem = {
       id: `${product.id}-${selectedColor}-${selectedSize}`,
@@ -124,23 +127,52 @@ export default function ProductDetail() {
     };
     
     addToCart(cartItem);
-    
   };
 
   const handleBuyNow = () => {
     if (!selectedSize) { toast.error("Please select a size"); return; }
-    // Call without event to skip propagation logic
     handleAddToCart(); 
-    navigate('/cart'); // Redirects to cart (or checkout)
+    navigate('/cart'); 
   };
 
+  // 🔥 UPDATED SHARE LOGIC
   const handleShare = async () => {
-    try {
-        await navigator.clipboard.writeText(window.location.href);
-        toast.success("Link copied to clipboard!");
-    } catch (err) {
-        toast.error("Failed to copy link");
+    const shareData = {
+        title: product.name,
+        text: `Check out ${product.name} on Stature Vogue!`,
+        url: window.location.href,
+    };
+
+    // 1. Try Native Share (Mobile)
+    if (navigator.share) {
+        try {
+            await navigator.share(shareData);
+        } catch (err) {
+            console.log("Share cancelled");
+        }
+    } else {
+        // 2. Fallback to Modal (Desktop)
+        setIsShareModalOpen(true);
     }
+  };
+
+  const copyLink = () => {
+      navigator.clipboard.writeText(window.location.href);
+      toast.success("Link copied!");
+      setIsShareModalOpen(false);
+  };
+
+  const shareWhatsApp = () => {
+      const text = encodeURIComponent(`Check out ${product.name} on Stature Vogue! ${window.location.href}`);
+      window.open(`https://wa.me/?text=${text}`, '_blank');
+      setIsShareModalOpen(false);
+  };
+
+  const shareTwitter = () => {
+      const text = encodeURIComponent(`Check out ${product.name} on Stature Vogue!`);
+      const url = encodeURIComponent(window.location.href);
+      window.open(`https://twitter.com/intent/tweet?text=${text}&url=${url}`, '_blank');
+      setIsShareModalOpen(false);
   };
 
   const handleSubmitReview = async (e: React.FormEvent) => {
@@ -161,12 +193,10 @@ export default function ProductDetail() {
         setNewReviewName("");
         setNewReviewRating(5);
         
-        // Refresh reviews
         const updatedReviews = await storeService.getReviews(slug as string);
         setReviews(updatedReviews.results || updatedReviews);
 
     } catch (error: any) {
-        console.error("Review Error:", error);
         if (error.response?.status === 400 && Array.isArray(error.response.data)) {
              toast.error(error.response.data[0]); 
         } else if (error.response?.status === 401) {
@@ -195,7 +225,9 @@ export default function ProductDetail() {
       : `/products?category=${encodeURIComponent(product.category || "")}`;
 
   return (
-    <div className="min-h-screen bg-white pb-24 relative">
+    // 🔥 FIX: Added 'pt-28 md:pt-36' to fix cropping behind header
+    <div className="min-h-screen bg-white pb-24 relative pt-28 md:pt-36">
+      
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
         <div className="flex items-center text-xs text-gray-600">
           <span className="cursor-pointer hover:text-[#1F2B5B]" onClick={() => navigate('/')}>Home</span>
@@ -222,13 +254,16 @@ export default function ProductDetail() {
                 alt={product.name}
                 className="w-full h-full object-cover"
               />
+              
+              {/* 🔥 SHARE BUTTON ON IMAGE */}
               <button 
                 onClick={handleShare}
-                className="absolute top-4 right-4 bg-white/90 p-2 rounded-full shadow-md hover:bg-white hover:text-[#1F2B5B] transition-all z-10"
+                className="absolute top-4 right-4 bg-white p-2 rounded-full shadow-lg z-20 group/share hover:scale-105 transition-all"
                 title="Share this product"
               >
-                <Share2 className="w-5 h-5 text-gray-700" />
+                <Share2 className="w-5 h-5 text-gray-600 group-hover/share:text-[#1F2B5B]" />
               </button>
+
               {displayImages.length > 1 && (
                 <>
                     <button onClick={prevImage} className="absolute left-3 top-1/2 -translate-y-1/2 bg-white/80 p-1.5 rounded-full hover:bg-white transition"><ChevronLeft className="w-5 h-5 text-[#1F2B5B]" /></button>
@@ -435,6 +470,51 @@ export default function ProductDetail() {
         </div>
       </div>
 
+      {/* 🔥 SHARE MODAL (Desktop Fallback) */}
+      {isShareModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 animate-in fade-in">
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm p-6 relative">
+                <button onClick={() => setIsShareModalOpen(false)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600">
+                    <X className="w-5 h-5" />
+                </button>
+                <h3 className="text-lg font-bold text-[#1F2B5B] mb-6 text-center">Share Product</h3>
+                
+                <div className="grid grid-cols-1 gap-3">
+                    <button onClick={copyLink} className="flex items-center gap-3 p-3 rounded-lg border hover:bg-gray-50 transition-colors text-left">
+                        <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center text-gray-600">
+                            <Copy className="w-5 h-5" />
+                        </div>
+                        <div>
+                            <p className="font-semibold text-gray-800 text-sm">Copy Link</p>
+                            <p className="text-xs text-gray-500">Copy to clipboard</p>
+                        </div>
+                    </button>
+
+                    <button onClick={shareWhatsApp} className="flex items-center gap-3 p-3 rounded-lg border hover:bg-green-50 hover:border-green-200 transition-colors text-left group">
+                        <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center text-green-600 group-hover:bg-green-200 transition-colors">
+                            <MessageCircle className="w-5 h-5" />
+                        </div>
+                        <div>
+                            <p className="font-semibold text-gray-800 text-sm">WhatsApp</p>
+                            <p className="text-xs text-gray-500">Share with friends</p>
+                        </div>
+                    </button>
+
+                    <button onClick={shareTwitter} className="flex items-center gap-3 p-3 rounded-lg border hover:bg-blue-50 hover:border-blue-200 transition-colors text-left group">
+                        <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 group-hover:bg-blue-200 transition-colors">
+                            <Twitter className="w-5 h-5" />
+                        </div>
+                        <div>
+                            <p className="font-semibold text-gray-800 text-sm">Twitter / X</p>
+                            <p className="text-xs text-gray-500">Post a tweet</p>
+                        </div>
+                    </button>
+                </div>
+            </div>
+        </div>
+      )}
+
+      {/* Review Modal */}
       {isReviewModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
             <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-6 relative animate-in zoom-in-95">
