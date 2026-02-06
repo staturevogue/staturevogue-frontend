@@ -1,0 +1,2 @@
+npm install @react-oauth/google
+npm install axios sonner lucide-react @react-oauth/google

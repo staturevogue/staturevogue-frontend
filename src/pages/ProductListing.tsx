@@ -10,7 +10,6 @@ export default function ProductListing() {
   const [activeFilterTab, setActiveFilterTab] = useState("Price"); 
   const [searchParams] = useSearchParams();
   
-  // 🔥 FIX 1: Get 'badge' from URL (e.g. ?badge=NEW)
   const urlBadge = searchParams.get("badge");
   const urlCategory = searchParams.get("category");
   const urlGender = searchParams.get("gender");
@@ -38,7 +37,6 @@ export default function ProductListing() {
   const [currentGender, setCurrentGender] = useState<string | null>(null);
   const [genderCategories, setGenderCategories] = useState<any[]>([]);
 
-  // 🔥 FIX 2: Update Page Title logic to include Badge names
   const getPageTitle = () => {
     if (urlBadge === "NEW") return "New Arrivals";
     if (urlBadge === "BESTSELLER") return "Best Sellers";
@@ -56,7 +54,6 @@ export default function ProductListing() {
         setLoading(true);
         try {
             const params: any = {};
-            // 🔥 FIX 3: Pass badge to the API
             if (urlBadge) params.badge = urlBadge;
             if (urlGender) params.gender = urlGender;
             if (urlCategory) params.category = urlCategory;
@@ -67,7 +64,6 @@ export default function ProductListing() {
             const fetchedProducts = data.results || data;
             setProducts(fetchedProducts);
 
-            // Calculate available filters based on fetched data
             const sizes = new Set<string>();
             const colors = new Set<string>();
             const genders = new Set<string>(); 
@@ -82,7 +78,6 @@ export default function ProductListing() {
             setAllColors(Array.from(colors).sort());
             setAvailableGenders(Array.from(genders));
 
-            // Only show Landing Page if we are strictly browsing a Gender (and not a badge/category)
             if (urlGender && !urlCategory && !urlCollection && !urlBadge) {
                 setShowCategoryLanding(true);
                 setCurrentGender(urlGender);
@@ -99,7 +94,7 @@ export default function ProductListing() {
         }
     };
     fetchData();
-  }, [urlCategory, urlGender, urlCollection, searchQuery, urlBadge]); // 🔥 FIX 4: Add urlBadge dependency
+  }, [urlCategory, urlGender, urlCollection, searchQuery, urlBadge]);
 
   // 2️⃣ FILTER LOGIC
   const toggleFilter = (item: string, list: string[], setList: (a: string[]) => void) => {
@@ -108,29 +103,20 @@ export default function ProductListing() {
 
   const filteredProducts = useMemo(() => {
     return products.filter(product => {
-      // Price Filter
       if (product.price > priceRange[1]) return false;
+      if (selectedGenders.length > 0 && !selectedGenders.includes((product as any).gender)) return false;
       
-      // Gender Filter
-      if (selectedGenders.length > 0 && !selectedGenders.includes((product as any).gender)) {
-         return false;
-      }
-
-      // Size Filter
       if (selectedSizes.length > 0) {
         const productSizes = (product as any).sizes?.map((s: any) => s.size) || [];
         if (!selectedSizes.some(s => productSizes.includes(s))) return false;
       }
 
-      // Color Filter
       if (selectedColors.length > 0) {
         const productColors = (product as any).colors?.map((c: any) => c.name) || [];
         if (!selectedColors.some(c => productColors.includes(c))) return false;
       }
 
-      // Stock Filter
       if (onlyInStock && !product.inStock) return false;
-      
       return true;
     }).sort((a, b) => {
       if (sortBy === "price-low") return a.price - b.price;
@@ -209,11 +195,12 @@ export default function ProductListing() {
     }
   };
 
+  // 🔥 FIX FOR LANDING PAGE: Added 'pt-28 md:pt-36' to push content below fixed header
   if (showCategoryLanding && currentGender) {
     if(loading) return <div className="h-screen flex justify-center items-center"><Loader2 className="animate-spin text-[#1F2B5B]" /></div>
     return (
       <div className="min-h-screen bg-white">
-        <div className="max-w-7xl mx-auto px-4 py-16">
+        <div className="max-w-7xl mx-auto px-4 pt-28 pb-16 md:pt-36">
           <div className="text-center mb-16">
             <h1 className="text-2xl md:text-5xl font-bold text-[#1F2B5B] uppercase tracking-wide mb-4">{currentGender}</h1>
             <p className="text-0xl md:text-xl text-gray-600 max-w-xl mx-auto">Explore our {currentGender.toLowerCase()} collection</p>
@@ -247,9 +234,10 @@ export default function ProductListing() {
     );
   }
 
+  // 🔥 FIX FOR LISTING PAGE: Added 'pt-28 md:pt-36' to main container
   return (
     <div className="min-h-screen bg-white">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 pb-24 md:pb-8"> 
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-28 pb-24 md:pt-36 md:pb-8"> 
         <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
           <div>
             <h1 className="text-2xl font-bold text-[#1F2B5B] uppercase tracking-wide">
@@ -273,7 +261,8 @@ export default function ProductListing() {
 
         <div className="flex gap-10">
           <aside className="hidden md:block w-64 flex-shrink-0">
-            <div className="space-y-8 sticky top-24">
+            {/* Added 'top-32' here so filters don't get stuck under header */}
+            <div className="space-y-8 sticky top-32">
               
               {showGenderFilter && (
                 <div>

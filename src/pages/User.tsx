@@ -7,7 +7,7 @@ import {
   UploadCloud, FileVideo, Copy, Truck, ExternalLink
 } from "lucide-react";
 import { toast } from "sonner";
-import { orderService, authService,} from "../services/api"; // Ensure api is imported
+import { orderService, authService,} from "../services/api"; 
 import api from "../services/api";
 
 // --- INTERFACES ---
@@ -33,7 +33,11 @@ interface Order {
   shipping_address: string;
   phone: string;
   items: OrderItem[];
-  tracking_link?: string; // ✅ Added tracking link
+  // ✅ UPDATED FIELDS FOR REFUND
+  razorpay_refund_id?: string;
+  refunded_date?: string;
+  payment_method: string; 
+  tracking_link?: string; 
 }
 
 interface SavedAddress {
@@ -129,19 +133,30 @@ const UserProfile = () => {
       setAllOrders(Array.isArray(updated) ? updated : updated.results);
   };
 
-  // 🔥 UPDATED CANCEL HANDLER with better error messages
   const handleCancelOrder = async (orderId: number) => {
-    if (!window.confirm("Are you sure? Refund will be initiated.")) return;
-    
-    try {
-      await api.post(`/orders/${orderId}/cancel/`);
-      toast.success("Order cancelled successfully");
-      refreshOrders();
-    } catch (err: any) { 
-        // Show the specific error from backend (e.g., "Cannot cancel shipped order")
-        const errorMessage = err.response?.data?.error || "Failed to cancel order. Please try again.";
-        toast.error(errorMessage); 
-    }
+    toast.warning("Cancel this order?", {
+      description: "Refund will be initiated to your original payment method.",
+      action: {
+        label: "Yes, Cancel",
+        onClick: async () => {
+          try {
+            await api.post(`/orders/${orderId}/cancel/`);
+            toast.success("Order cancelled successfully");
+            refreshOrders();
+          } catch (err: any) {
+            toast.error(
+              err.response?.data?.error ||
+              "Unable to cancel order at this stage"
+            );
+          }
+        },
+      },
+      cancel: {
+        label: "No",
+        onClick: () => {}, 
+      },
+      duration: 5000,
+    });
   };
 
   const openActionModal = (itemId: number, type: 'return' | 'exchange') => {
@@ -316,7 +331,6 @@ const UserProfile = () => {
                                                     {order.order_status}
                                                 </span>
 
-                                                {/* 🔥 TRACKING BUTTON - Shows only if link exists */}
                                                 {order.tracking_link && (
                                                     <a 
                                                         href={order.tracking_link} 
@@ -329,6 +343,41 @@ const UserProfile = () => {
                                                 )}
                                             </div>
                                         </div>
+
+                                        {/* 🔥 REFUND INFO SECTION - Added Here 🔥 */}
+                                        {(order.payment_status === 'Refunded' || order.order_status === 'Refunded' || order.razorpay_refund_id) && (
+                                            <div className="bg-purple-50 border-b border-purple-100 px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-sm animate-in fade-in">
+                                                <div className="flex items-center gap-2 text-purple-800">
+                                                    <RefreshCw className="w-4 h-4" />
+                                                    <span className="font-bold">Refund Processed</span>
+                                                </div>
+                                                <div className="flex flex-col sm:flex-row gap-1 sm:gap-6 text-purple-700 text-xs sm:text-sm">
+                                                    
+                                                    {/* Scenario A: Online Refund (Show Ref ID) */}
+                                                    {order.payment_method === 'Online' && order.razorpay_refund_id && (
+                                                        <div className="flex gap-1">
+                                                            <span className="opacity-70">Ref ID:</span>
+                                                            <span className="font-mono font-bold select-all">{order.razorpay_refund_id}</span>
+                                                        </div>
+                                                    )}
+
+                                                    {/* Scenario B: COD Refund (Show Manual Message) */}
+                                                    {order.payment_method === 'COD' && (
+                                                        <div className="flex gap-1">
+                                                            <span className="font-medium italic">Amount refunded to your bank account</span>
+                                                        </div>
+                                                    )}
+
+                                                    {/* Date (Common for both) */}
+                                                    {order.refunded_date && (
+                                                        <div className="flex gap-1">
+                                                            <span className="opacity-70">Date:</span>
+                                                            <span className="font-bold">{order.refunded_date}</span>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        )}
 
                                         {/* Content */}
                                         <div className="p-4">
