@@ -368,11 +368,7 @@ export default function ProductDetail() {
               <button className="flex-1 bg-[#1F2B5B] text-white py-3 px-4 rounded-lg font-bold text-sm hover:bg-[#283747] transition-all" onClick={handleBuyNow}>BUY NOW</button>
             </div>
             
-            <div className="grid grid-cols-3 gap-4 mb-6 text-xs border-t pt-6">
-              <div className="flex flex-col items-center text-center gap-1"><Truck className="w-5 h-5 text-[#1F2B5B]" /><span>Free Shipping</span></div>
-              <div className="flex flex-col items-center text-center gap-1"><RotateCcw className="w-5 h-5 text-[#1F2B5B]" /><span>Easy Returns</span></div>
-              <div className="flex flex-col items-center text-center gap-1"><Shield className="w-5 h-5 text-[#1F2B5B]" /><span>Secure Payment</span></div>
-            </div>
+            
           </div>
         </div>
 

@@ -64,18 +64,15 @@ const UserProfile = () => {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<'orders' | 'addresses'>('orders');
   
-  // Data State
   const [userProfile, setUserProfile] = useState<any>(null);
   const [allOrders, setAllOrders] = useState<Order[]>([]);
   const [addresses, setAddresses] = useState<SavedAddress[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Pagination
   const [expandedOrderId, setExpandedOrderId] = useState<number | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const ORDERS_PER_PAGE = 5;
 
-  // Address Form State
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingAddressId, setEditingAddressId] = useState<number | null>(null); 
   
@@ -87,7 +84,6 @@ const UserProfile = () => {
   
   const [submittingAddress, setSubmittingAddress] = useState(false);
 
-  // Action Modal State
   const [actionModalOpen, setActionModalOpen] = useState(false);
   const [selectedItemForAction, setSelectedItemForAction] = useState<number | null>(null); 
   const [actionType, setActionType] = useState<'return' | 'exchange'>('return');
@@ -95,7 +91,6 @@ const UserProfile = () => {
   const [proofVideo, setProofVideo] = useState<File | null>(null);
   const [isSubmittingAction, setIsSubmittingAction] = useState(false);
 
-  // --- INITIAL DATA FETCH ---
   useEffect(() => {
     const token = localStorage.getItem("userToken");
     if (!token) { navigate("/login"); return; }
@@ -120,7 +115,6 @@ const UserProfile = () => {
     fetchData();
   }, [navigate]);
 
-  // --- HANDLERS ---
   const handleLogout = () => {
     localStorage.removeItem("userToken");
     localStorage.removeItem('cart'); 
@@ -144,17 +138,11 @@ const UserProfile = () => {
             toast.success("Order cancelled successfully");
             refreshOrders();
           } catch (err: any) {
-            toast.error(
-              err.response?.data?.error ||
-              "Unable to cancel order at this stage"
-            );
+            toast.error(err.response?.data?.error || "Unable to cancel order at this stage");
           }
         },
       },
-      cancel: {
-        label: "No",
-        onClick: () => {}, 
-      },
+      cancel: { label: "No", onClick: () => {} },
       duration: 5000,
     });
   };
@@ -197,9 +185,7 @@ const UserProfile = () => {
           toast.success("Request submitted successfully!");
           setActionModalOpen(false);
 
-          setTimeout(() => {
-            refreshOrders(); 
-          }, 500);
+          setTimeout(() => { refreshOrders(); }, 500);
       } catch (err: any) { 
           toast.error(err.response?.data?.error || "Request failed"); 
       } finally { 
@@ -285,7 +271,6 @@ const UserProfile = () => {
       }
   };
 
-  // --- RENDER CONTENT ---
   const renderContent = () => {
     switch (activeTab) {
         case 'orders':
@@ -297,9 +282,7 @@ const UserProfile = () => {
                 <div className="space-y-6 animate-fade-in">
                     <div className="flex justify-between items-center mb-2">
                         <h2 className="text-2xl font-bold text-[#1F2B5B]">My Orders</h2>
-                        <button onClick={refreshOrders} className="text-sm text-blue-600 hover:underline">
-                            ↻ Refresh Status
-                        </button>
+                        <button onClick={refreshOrders} className="text-sm text-blue-600 hover:underline">↻ Refresh Status</button>
                     </div>
 
                     {allOrders.length === 0 ? (
@@ -317,10 +300,11 @@ const UserProfile = () => {
 
                                 return (
                                     <div key={order.id} className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-shadow">
+                                        
                                         {/* Header */}
                                         <div className="bg-gray-50/50 p-4 border-b border-gray-100 flex flex-wrap justify-between items-center gap-4">
                                             <div>
-                                                <p className="font-bold text-[#1F2B5B] text-lg">Order #{userOrderNumber}</p>
+                                                <p className="font-bold text-[#1F2B5B] text-lg">Order {userOrderNumber}</p>
                                                 <p className="text-xs text-gray-500 mt-1">
                                                     Placed on {new Date(order.created_at).toLocaleDateString('en-IN', { year: 'numeric', month: 'short', day: 'numeric' })}
                                                 </p>
@@ -330,21 +314,15 @@ const UserProfile = () => {
                                                 <span className={`px-3 py-1 text-xs font-bold rounded-full border ${getStatusColor(order.order_status)}`}>
                                                     {order.order_status}
                                                 </span>
-
                                                 {order.tracking_link && (
-                                                    <a 
-                                                        href={order.tracking_link} 
-                                                        target="_blank" 
-                                                        rel="noopener noreferrer"
-                                                        className="flex items-center gap-1 bg-[#1F2B5B] text-white px-3 py-1.5 text-xs font-bold rounded-lg hover:bg-[#283747] transition-colors shadow-sm"
-                                                    >
+                                                    <a href={order.tracking_link} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 bg-[#1F2B5B] text-white px-3 py-1.5 text-xs font-bold rounded-lg hover:bg-[#283747] transition-colors shadow-sm">
                                                         <Truck className="w-3 h-3" /> Track Order
                                                     </a>
                                                 )}
                                             </div>
                                         </div>
 
-                                        {/* 🔥 REFUND INFO SECTION - Added Here 🔥 */}
+                                        {/* 🔥 REFUND INFO SECTION - ADDED HERE 🔥 */}
                                         {(order.payment_status === 'Refunded' || order.order_status === 'Refunded' || order.razorpay_refund_id) && (
                                             <div className="bg-purple-50 border-b border-purple-100 px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-sm animate-in fade-in">
                                                 <div className="flex items-center gap-2 text-purple-800">
@@ -353,22 +331,24 @@ const UserProfile = () => {
                                                 </div>
                                                 <div className="flex flex-col sm:flex-row gap-1 sm:gap-6 text-purple-700 text-xs sm:text-sm">
                                                     
-                                                    {/* Scenario A: Online Refund (Show Ref ID) */}
-                                                    {order.payment_method === 'Online' && order.razorpay_refund_id && (
+                                                    {/* Case 1: Auto-Refund (Has Ref ID) */}
+                                                    {order.razorpay_refund_id ? (
                                                         <div className="flex gap-1">
                                                             <span className="opacity-70">Ref ID:</span>
                                                             <span className="font-mono font-bold select-all">{order.razorpay_refund_id}</span>
                                                         </div>
-                                                    )}
-
-                                                    {/* Scenario B: COD Refund (Show Manual Message) */}
-                                                    {order.payment_method === 'COD' && (
+                                                    ) : (
+                                                        /* Case 2: Manual Refund (COD or Online Return) */
                                                         <div className="flex gap-1">
-                                                            <span className="font-medium italic">Amount refunded to your bank account</span>
+                                                            <span className="font-medium italic">
+                                                                {order.payment_method === 'COD' 
+                                                                    ? "Amount refunded to your bank account" 
+                                                                    : "Refund processed manually (Shipping charges deducted)"}
+                                                            </span>
                                                         </div>
                                                     )}
 
-                                                    {/* Date (Common for both) */}
+                                                    {/* Date */}
                                                     {order.refunded_date && (
                                                         <div className="flex gap-1">
                                                             <span className="opacity-70">Date:</span>
@@ -381,8 +361,6 @@ const UserProfile = () => {
 
                                         {/* Content */}
                                         <div className="p-4">
-                                            
-                                            {/* ITEMS LIST */}
                                             {order.items.map((item, i) => {
                                                 const productUrl = item.product_slug ? `/product/${item.product_slug}` : "#";
                                                 const isDelivered = order.order_status === 'Delivered';
@@ -391,48 +369,24 @@ const UserProfile = () => {
                                                 return (
                                                     <div key={i} className="flex flex-col gap-3 py-4 border-b border-gray-50 last:border-0">
                                                         <div className="flex gap-4 items-start">
-                                                            {/* Image & Link */}
                                                             <Link to={productUrl} className="w-16 h-16 bg-gray-100 rounded-md overflow-hidden flex-shrink-0 border border-gray-200 block">
-                                                                {item.image ? (
-                                                                    <img src={item.image} alt={item.product_name} className="w-full h-full object-cover" />
-                                                                ) : (
-                                                                    <div className="w-full h-full flex items-center justify-center text-gray-400">
-                                                                        <Package className="w-6 h-6" />
-                                                                    </div>
-                                                                )}
+                                                                {item.image ? <img src={item.image} alt={item.product_name} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-gray-400"><Package className="w-6 h-6" /></div>}
                                                             </Link>
-
                                                             <div className="flex-1">
-                                                                <Link to={productUrl} className="font-bold text-gray-800 text-sm hover:text-[#1F2B5B] hover:underline block mb-1">
-                                                                    {item.product_name}
-                                                                </Link>
+                                                                <Link to={productUrl} className="font-bold text-gray-800 text-sm hover:text-[#1F2B5B] hover:underline block mb-1">{item.product_name}</Link>
                                                                 <p className="text-xs text-gray-500">{item.variant_label} | Qty: {item.quantity}</p>
                                                                 <p className="text-xs font-medium text-gray-900 mt-1">₹{parseFloat(item.price).toLocaleString()}</p>
-                                                                
                                                                 {item.status !== 'Ordered' && (
-                                                                    <span className={`inline-block mt-2 text-[10px] px-2 py-0.5 rounded font-bold uppercase tracking-wide 
-                                                                        ${item.status.includes('Approved') ? 'bg-green-100 text-green-700' : 
-                                                                          item.status.includes('Rejected') ? 'bg-red-100 text-red-700' : 
-                                                                          item.status.includes('Requested') ? 'bg-orange-100 text-orange-700' : 'bg-gray-100'}`}>
-                                                                        {item.status}
-                                                                    </span>
+                                                                    <span className={`inline-block mt-2 text-[10px] px-2 py-0.5 rounded font-bold uppercase tracking-wide ${item.status.includes('Approved') ? 'bg-green-100 text-green-700' : item.status.includes('Rejected') ? 'bg-red-100 text-red-700' : item.status.includes('Requested') ? 'bg-orange-100 text-orange-700' : 'bg-gray-100'}`}>{item.status}</span>
                                                                 )}
                                                             </div>
                                                         </div>
-
-                                                        {/* Action Buttons */}
                                                         {canAction && (
                                                             <div className="flex gap-2 justify-end">
-                                                                <button onClick={() => openActionModal(item.id, 'return')} className="text-xs font-bold text-orange-600 hover:bg-orange-50 px-3 py-1.5 rounded border border-orange-100 transition-colors">
-                                                                    Return Item
-                                                                </button>
-                                                                <button onClick={() => openActionModal(item.id, 'exchange')} className="text-xs font-bold text-blue-600 hover:bg-blue-50 px-3 py-1.5 rounded border border-blue-100 transition-colors">
-                                                                    Exchange Item
-                                                                </button>
+                                                                <button onClick={() => openActionModal(item.id, 'return')} className="text-xs font-bold text-orange-600 hover:bg-orange-50 px-3 py-1.5 rounded border border-orange-100 transition-colors">Return Item</button>
+                                                                <button onClick={() => openActionModal(item.id, 'exchange')} className="text-xs font-bold text-blue-600 hover:bg-blue-50 px-3 py-1.5 rounded border border-blue-100 transition-colors">Exchange Item</button>
                                                             </div>
                                                         )}
-
-                                                        {/* REJECTION REASON DISPLAY */}
                                                         {(item.status === 'Return Rejected' || item.status === 'Exchange Rejected') && item.admin_comment && (
                                                             <div className="mt-2 bg-red-50 border border-red-200 p-3 rounded-lg flex gap-3 items-start animate-in fade-in">
                                                                 <AlertCircle className="w-4 h-4 text-red-600 mt-0.5 flex-shrink-0" />
@@ -442,8 +396,6 @@ const UserProfile = () => {
                                                                 </div>
                                                             </div>
                                                         )}
-
-                                                        {/* Coupon Display */}
                                                         {item.status === 'Exchange Approved' && item.exchange_coupon_code && (
                                                             <div className="bg-green-50 border border-green-200 p-3 rounded-lg flex justify-between items-center gap-2 animate-in fade-in">
                                                                 <div>
@@ -460,7 +412,6 @@ const UserProfile = () => {
                                                 );
                                             })}
 
-                                            {/* EXPANDED DETAILS */}
                                             {isExpanded && (
                                                 <div className="mt-4 bg-gray-50 p-4 rounded-lg border border-gray-200 animate-in slide-in-from-top-2 duration-300">
                                                     <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">Delivery Details</h4>
@@ -484,15 +435,10 @@ const UserProfile = () => {
                                             )}
 
                                             <div className="mt-4 pt-2 flex flex-wrap justify-between items-center gap-4">
-                                                <button 
-                                                    onClick={() => setExpandedOrderId(isExpanded ? null : order.id)}
-                                                    className="flex items-center gap-1 text-sm font-bold text-[#1F2B5B] hover:text-[#F4C430] transition-colors"
-                                                >
+                                                <button onClick={() => setExpandedOrderId(isExpanded ? null : order.id)} className="flex items-center gap-1 text-sm font-bold text-[#1F2B5B] hover:text-[#F4C430] transition-colors">
                                                     {isExpanded ? 'Hide Details' : 'View Order Details'}
                                                     <ChevronDown className={`w-4 h-4 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
                                                 </button>
-
-                                                {/* Global Order Cancel */}
                                                 {canCancelOrder && (
                                                     <div className="flex gap-3">
                                                         <button onClick={() => handleCancelOrder(order.id)} className="flex items-center gap-1 text-xs font-bold text-red-600 hover:bg-red-50 px-3 py-2 rounded-md border border-red-100 transition-colors">
@@ -591,6 +537,7 @@ const UserProfile = () => {
       <div className="container mx-auto px-4 md:px-8 max-w-6xl">
         <div className="flex flex-col lg:flex-row gap-8">
           <aside className="w-full lg:w-72 bg-white rounded-xl shadow-sm p-6 h-fit border border-gray-100">
+            {/* User Info & Navigation (Same as before) */}
             <div className="flex items-center gap-4 mb-8 pb-6 border-b border-gray-100">
               <div className="w-12 h-12 rounded-full bg-[#1F2B5B] flex items-center justify-center text-white font-bold text-lg flex-shrink-0">
                 {userProfile?.first_name?.[0]}{userProfile?.last_name?.[0] || userProfile?.email?.[0]}

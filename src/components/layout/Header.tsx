@@ -107,9 +107,14 @@ export default function Header() {
 
           {/* --- CENTER: Desktop Navigation --- */}
           <nav className="hidden md:flex items-center space-x-6 lg:space-x-8 ml-8">
-            <Link to="/products?badge=NEW" className="text-sm font-bold text-red-600 hover:text-red-700 uppercase tracking-wide whitespace-nowrap">
-              New Arrivals
-            </Link>
+            <Link
+  to="/products?badge=NEW"
+  className="text-sm font-medium text-gray-700 hover:text-[#1F2B5B] uppercase tracking-wide whitespace-nowrap"
+>
+  New Arrivals
+</Link>
+
+
 
             {/* MEN */}
             <div className="relative group h-20 flex items-center">
@@ -250,9 +255,12 @@ export default function Header() {
                 <span>My Orders & Account</span>
               </Link>
 
-              <Link to="/products?badge=NEW" className="block py-3 font-bold text-red-600 border-b border-gray-100" onClick={() => setIsMenuOpen(false)}>
-                NEW ARRIVALS
-              </Link>
+                         <Link
+  to="/products?badge=NEW"
+  className="text-sm font-medium text-gray-700 hover:text-[#1F2B5B] uppercase tracking-wide whitespace-nowrap"
+>
+  New Arrivals
+</Link>
               
               {/* Men Mobile */}
               <div>

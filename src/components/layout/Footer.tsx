@@ -1,8 +1,8 @@
 import { Link } from "react-router-dom";
-import { Instagram, Facebook, Mail, Phone } from "lucide-react";
+import { Instagram, Mail, Phone, Heart } from "lucide-react"; // ✅ Added Heart
 
 export default function Footer() {
-  const whatsappNumber = "917842096520"; // 👉 replace with client's WhatsApp number if needed
+  const whatsappNumber = "917842096520";
   const whatsappMessage = encodeURIComponent(
     "Hi StatureVogue!! I’m interested in your clothing collection. Can you help me?"
   );
@@ -14,7 +14,6 @@ export default function Footer() {
 
           {/* --- BRANDING / ABOUT --- */}
           <div>
-            {/* Logo & Title (Matched Header Style) */}
             <Link to="/" className="flex items-center gap-2 mb-6">
                <img 
                  src="/logo.jpeg" 
@@ -74,7 +73,6 @@ export default function Footer() {
 
             {/* Social Icons */}
             <div className="flex gap-4 mt-6">
-              {/* Instagram */}
               <a
                 href="https://www.instagram.com/stature_vogue?igsh=MW1va21renNjdXl4bw%3D%3D&utm_source=qr"
                 target="_blank"
@@ -84,9 +82,6 @@ export default function Footer() {
                 <Instagram className="w-5 h-5 hover:text-[#F4C430] transition" />
               </a>
 
-              
-
-              {/* WhatsApp */}
               <a
                 href={`https://wa.me/${whatsappNumber}?text=${whatsappMessage}`}
                 target="_blank"
@@ -103,8 +98,30 @@ export default function Footer() {
           </div>
         </div>
 
-        <div className="text-center text-sm text-gray-400 border-t border-blue-800 pt-8">
-          © 2026 STATUREVOGUE. All rights reserved.
+        {/* --- BOTTOM SECTION --- */}
+        <div className="pt-8 flex flex-col md:flex-row justify-between items-center gap-4 text-sm text-gray-400">
+
+          <div>
+            © 2026 STATUREVOGUE. All rights reserved.
+          </div>
+
+          {/* StaffArc Branding */}
+          <div className="flex justify-center items-center gap-1">
+            Made with <Heart className="inline h-4 w-4 text-red-500 mx-1 fill-current" /> by
+            <a
+              href="https://staffarc.in"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1 text-[#F4C430] hover:underline hover:text-white transition-colors"
+            >
+              <img
+                src="https://www.staffarc.in/images/Staffarc-logo.png"
+                alt="StaffArc logo"
+                className="h-5 w-5 object-contain"
+              />
+              StaffArc
+            </a>
+          </div>
         </div>
       </div>
     </footer>
