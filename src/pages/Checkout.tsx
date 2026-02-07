@@ -17,13 +17,13 @@ export default function Checkout() {
   const cartTotal = getCartTotal();
   
   const [paymentMethod, setPaymentMethod] = useState<'Online' | 'COD'>('Online');
-
+  const [saveAsDefault, setSaveAsDefault] = useState(false);
   const [loadingConfig, setLoadingConfig] = useState(true);
   const [config, setConfig] = useState({
-    shipping_flat_rate: 0,
+    shipping_flat_rate: 100, // Default to 100 if fetch fails
     shipping_free_above: 0,
     tax_rate_percentage: 0,
-    cod_extra_fee: 50, // Default fallback
+    cod_extra_fee: 50, 
   });
 
   const [discountCode, setDiscountCode] = useState("");
@@ -54,10 +54,10 @@ export default function Checkout() {
       try {
         const configData = await storeService.getSiteConfig();
         setConfig({
-          shipping_flat_rate: parseFloat(configData.shipping_flat_rate) || 0,
+          shipping_flat_rate: parseFloat(configData.shipping_flat_rate) || 100,
           shipping_free_above: parseFloat(configData.shipping_free_above) || 0,
           tax_rate_percentage: parseFloat(configData.tax_rate_percentage) || 0,
-          cod_extra_fee: parseFloat(configData.cod_extra_fee) || 50, // Fetch or default to 50
+          cod_extra_fee: parseFloat(configData.cod_extra_fee) || 50,
         });
         
         try {
@@ -100,7 +100,7 @@ export default function Checkout() {
           state: addr.state,
           pinCode: addr.zip_code, 
           phone: addr.phone,
-          country: addr.country || "India"
+          country: addr.country || "India",
       }));
   };
 
@@ -119,8 +119,8 @@ export default function Checkout() {
   
   // --- 2. CALCULATIONS ---
   const calculations = useMemo(() => {
-    const isFreeShipping = config.shipping_flat_rate === 0 || (config.shipping_free_above > 0 && cartTotal >= config.shipping_free_above);
-    const shippingCost = isFreeShipping ? 0 : config.shipping_flat_rate;
+    // 🔥 FIX 1: Enforce Fixed Shipping (Removed Free Shipping Logic)
+    const shippingCost = config.shipping_flat_rate; 
     
     let discountAmount = 0;
     if (couponData) {
@@ -130,13 +130,13 @@ export default function Checkout() {
     const taxableAmount = Math.max(0, cartTotal - discountAmount);
     const taxAmount = (taxableAmount * config.tax_rate_percentage) / 100;
     
-    // 🔥 COD LOGIC
+    // COD Logic
     const codFee = paymentMethod === 'COD' ? config.cod_extra_fee : 0;
 
     const finalTotal = taxableAmount + taxAmount + shippingCost + codFee;
 
-    return { shippingCost, isFreeShipping, discountAmount, taxAmount, codFee, finalTotal };
-  }, [cartTotal, config, couponData, paymentMethod]); // Updates when paymentMethod changes
+    return { shippingCost, discountAmount, taxAmount, codFee, finalTotal };
+  }, [cartTotal, config, couponData, paymentMethod]); 
 
   // --- 3. HANDLERS ---
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -171,7 +171,9 @@ export default function Checkout() {
         const orderPayload = {
             ...formData,
             zip_code: formData.pinCode,
-            payment_method: paymentMethod, 
+            payment_method: paymentMethod,
+            // 🔥 FIX 2: Send the 'save_as_default' flag to backend
+            save_as_default: saveAsDefault, 
             items: cartItems.map(item => ({
                 product_id: item.productId, 
                 quantity: item.quantity,
@@ -183,6 +185,7 @@ export default function Checkout() {
         
         const orderResp = await orderService.createOrder(orderPayload);
 
+        // --- COD FLOW ---
         if (orderResp.payment_method === 'COD') {
             toast.success("Order Placed Successfully!");
             clearCart();
@@ -190,6 +193,7 @@ export default function Checkout() {
             return;
         }
 
+        // --- ONLINE FLOW (Razorpay) ---
         const options = {
             key: orderResp.key,
             amount: orderResp.amount,
@@ -313,6 +317,20 @@ export default function Checkout() {
               </div>
             </div>
 
+            {/* SAVE AS DEFAULT CHECKBOX */}
+            <div className="flex items-center gap-2 px-2">
+                <input 
+                    type="checkbox" 
+                    id="saveDefault" 
+                    checked={saveAsDefault} 
+                    onChange={(e) => setSaveAsDefault(e.target.checked)}
+                    className="w-4 h-4 text-[#1F2B5B] rounded focus:ring-[#1F2B5B] border-gray-300"
+                />
+                <label htmlFor="saveDefault" className="text-sm text-gray-700 font-medium cursor-pointer select-none">
+                    Save this as my default address
+                </label>
+            </div>
+
             {/* PAYMENT METHOD SELECTION */}
             <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
                 <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
@@ -390,9 +408,9 @@ export default function Checkout() {
                 <div className="flex justify-between text-gray-600"><span>Subtotal</span><span>₹{cartTotal.toLocaleString()}</span></div>
                 
                 <div className="flex justify-between text-gray-600">
-                    <span>Shipping</span>
-                    <span className={calculations.isFreeShipping ? "text-green-600 font-bold" : ""}>
-                        {calculations.isFreeShipping ? "FREE" : `₹${calculations.shippingCost}`}
+                    <span>Shipping (Standard)</span>
+                    <span className="font-medium text-gray-900">
+                        ₹{calculations.shippingCost}
                     </span>
                 </div>
 
@@ -400,7 +418,6 @@ export default function Checkout() {
                     <div className="flex justify-between text-gray-600"><span>GST ({config.tax_rate_percentage}%)</span><span>₹{calculations.taxAmount.toFixed(2)}</span></div>
                 )}
                 
-                {/* 🔥 DYNAMIC COD FEE ROW */}
                 {paymentMethod === 'COD' && (
                     <div className="flex justify-between text-gray-600">
                         <span>COD Handling Fee</span>
