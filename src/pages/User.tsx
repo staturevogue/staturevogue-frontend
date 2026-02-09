@@ -2,9 +2,9 @@ import React, { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom"; 
 import { 
   Package, MapPin, LogOut, Loader2, ChevronRight, 
-  CheckCircle, AlertCircle, Trash2, Star, Plus, 
-  XCircle, RefreshCw, RotateCcw, X, User, ChevronDown, Phone, Pencil,
-  UploadCloud, FileVideo, Copy, Truck, ExternalLink
+   AlertCircle, Trash2, Star, Plus, 
+  XCircle, RefreshCw,X, ChevronDown, Phone, Pencil,
+  UploadCloud, FileVideo, Copy, Truck,
 } from "lucide-react";
 import { toast } from "sonner";
 import { orderService, authService,} from "../services/api"; 
