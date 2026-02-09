@@ -2,9 +2,9 @@ import React, { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom"; 
 import { 
   Package, MapPin, LogOut, Loader2, ChevronRight, 
-  AlertCircle, Trash2, Star, Plus, 
-  XCircle, RefreshCw, X, ChevronDown, Phone, Pencil,
-  UploadCloud, FileVideo, Copy, Truck,
+  CheckCircle, AlertCircle, Trash2, Star, Plus, 
+  XCircle, RefreshCw, RotateCcw, X, User, ChevronDown, Phone, Pencil,
+  UploadCloud, FileVideo, Copy, Truck, ExternalLink
 } from "lucide-react";
 import { toast } from "sonner";
 import { orderService, authService,} from "../services/api"; 
@@ -33,7 +33,6 @@ interface Order {
   shipping_address: string;
   phone: string;
   items: OrderItem[];
-  // ✅ UPDATED FIELDS FOR REFUND
   razorpay_refund_id?: string;
   refunded_date?: string;
   payment_method: string; 
@@ -64,15 +63,18 @@ const UserProfile = () => {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<'orders' | 'addresses'>('orders');
   
+  // Data State
   const [userProfile, setUserProfile] = useState<any>(null);
   const [allOrders, setAllOrders] = useState<Order[]>([]);
   const [addresses, setAddresses] = useState<SavedAddress[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Pagination
   const [expandedOrderId, setExpandedOrderId] = useState<number | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const ORDERS_PER_PAGE = 5;
 
+  // Address Form State
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingAddressId, setEditingAddressId] = useState<number | null>(null); 
   
@@ -84,6 +86,7 @@ const UserProfile = () => {
   
   const [submittingAddress, setSubmittingAddress] = useState(false);
 
+  // Action Modal State
   const [actionModalOpen, setActionModalOpen] = useState(false);
   const [selectedItemForAction, setSelectedItemForAction] = useState<number | null>(null); 
   const [actionType, setActionType] = useState<'return' | 'exchange'>('return');
@@ -91,6 +94,7 @@ const UserProfile = () => {
   const [proofVideo, setProofVideo] = useState<File | null>(null);
   const [isSubmittingAction, setIsSubmittingAction] = useState(false);
 
+  // --- INITIAL DATA FETCH ---
   useEffect(() => {
     const token = localStorage.getItem("userToken");
     if (!token) { navigate("/login"); return; }
@@ -105,6 +109,8 @@ const UserProfile = () => {
         
         setUserProfile(profile);
         setAllOrders(Array.isArray(orders) ? orders : orders.results || []);
+        
+        // 🔥 FIX 1: Handle Pagination for Addresses correctly on load
         setAddresses(Array.isArray(addr) ? addr : addr.results || []);
       } catch (e) {
         console.error("Failed to load user data", e);
@@ -115,6 +121,7 @@ const UserProfile = () => {
     fetchData();
   }, [navigate]);
 
+  // --- HANDLERS ---
   const handleLogout = () => {
     localStorage.removeItem("userToken");
     localStorage.removeItem('cart'); 
@@ -138,7 +145,10 @@ const UserProfile = () => {
             toast.success("Order cancelled successfully");
             refreshOrders();
           } catch (err: any) {
-            toast.error(err.response?.data?.error || "Unable to cancel order at this stage");
+            toast.error(
+              err.response?.data?.error ||
+              "Unable to cancel order at this stage"
+            );
           }
         },
       },
@@ -198,7 +208,8 @@ const UserProfile = () => {
       toast.success("Coupon code copied!");
   };
 
-  // Address Handlers
+  // --- ADDRESS HANDLERS (FIXED) ---
+  
   const handleEditAddress = (addr: SavedAddress) => {
       setAddressForm({
           label: addr.label, first_name: addr.first_name, last_name: addr.last_name,
@@ -220,6 +231,7 @@ const UserProfile = () => {
     e.preventDefault();
     setSubmittingAddress(true);
     try {
+      // 1. Send Request
       if (editingAddressId) {
           await api.put(`/auth/addresses/${editingAddressId}/`, addressForm);
           toast.success("Address updated successfully");
@@ -227,10 +239,27 @@ const UserProfile = () => {
           await authService.saveAddress(addressForm);
           toast.success("Address saved successfully");
       }
+      
+      // 2. Reset UI
       resetForm();
+      
+      // 3. Fetch Updated List
       const updated = await authService.getSavedAddresses();
-      setAddresses(updated);
-    } catch(e) { toast.error("Failed to save address"); } finally { setSubmittingAddress(false); }
+      
+      // 🔥 FIX 2: Handle Pagination correctly (extract results if present)
+      const newAddressList = Array.isArray(updated) ? updated : (updated.results || []);
+      setAddresses(newAddressList);
+
+    } catch(err: any) { 
+      // 🔥 FIX 3: Show exact error from backend
+      console.error("Address Error:", err.response);
+      const msg = err.response?.data 
+        ? Object.values(err.response.data).flat().join(", ") 
+        : "Failed to save address";
+      toast.error(msg); 
+    } finally { 
+      setSubmittingAddress(false); 
+    }
   };
 
   const handleDeleteAddress = async (id: number) => {
@@ -246,7 +275,8 @@ const UserProfile = () => {
       try {
         await authService.setDefaultAddress(id);
         const updated = await authService.getSavedAddresses();
-        setAddresses(updated);
+        // 🔥 FIX 4: Handle Pagination here too
+        setAddresses(Array.isArray(updated) ? updated : updated.results || []);
         toast.success("Default updated");
       } catch(e) { toast.error("Failed"); }
   };
@@ -271,6 +301,7 @@ const UserProfile = () => {
       }
   };
 
+  // --- RENDER CONTENT ---
   const renderContent = () => {
     switch (activeTab) {
         case 'orders':
@@ -282,7 +313,9 @@ const UserProfile = () => {
                 <div className="space-y-6 animate-fade-in">
                     <div className="flex justify-between items-center mb-2">
                         <h2 className="text-2xl font-bold text-[#1F2B5B]">My Orders</h2>
-                        <button onClick={refreshOrders} className="text-sm text-blue-600 hover:underline">↻ Refresh Status</button>
+                        <button onClick={refreshOrders} className="text-sm text-blue-600 hover:underline">
+                            ↻ Refresh Status
+                        </button>
                     </div>
 
                     {allOrders.length === 0 ? (
@@ -300,11 +333,10 @@ const UserProfile = () => {
 
                                 return (
                                     <div key={order.id} className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-shadow">
-                                        
                                         {/* Header */}
                                         <div className="bg-gray-50/50 p-4 border-b border-gray-100 flex flex-wrap justify-between items-center gap-4">
                                             <div>
-                                                <p className="font-bold text-[#1F2B5B] text-lg">Order {userOrderNumber}</p>
+                                                <p className="font-bold text-[#1F2B5B] text-lg">Order #{userOrderNumber}</p>
                                                 <p className="text-xs text-gray-500 mt-1">
                                                     Placed on {new Date(order.created_at).toLocaleDateString('en-IN', { year: 'numeric', month: 'short', day: 'numeric' })}
                                                 </p>
@@ -314,6 +346,7 @@ const UserProfile = () => {
                                                 <span className={`px-3 py-1 text-xs font-bold rounded-full border ${getStatusColor(order.order_status)}`}>
                                                     {order.order_status}
                                                 </span>
+
                                                 {order.tracking_link && (
                                                     <a href={order.tracking_link} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 bg-[#1F2B5B] text-white px-3 py-1.5 text-xs font-bold rounded-lg hover:bg-[#283747] transition-colors shadow-sm">
                                                         <Truck className="w-3 h-3" /> Track Order
@@ -322,7 +355,7 @@ const UserProfile = () => {
                                             </div>
                                         </div>
 
-                                        {/* 🔥 REFUND INFO SECTION - ADDED HERE 🔥 */}
+                                        {/* Refund Section */}
                                         {(order.payment_status === 'Refunded' || order.order_status === 'Refunded' || order.razorpay_refund_id) && (
                                             <div className="bg-purple-50 border-b border-purple-100 px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-sm animate-in fade-in">
                                                 <div className="flex items-center gap-2 text-purple-800">
@@ -330,25 +363,18 @@ const UserProfile = () => {
                                                     <span className="font-bold">Refund Processed</span>
                                                 </div>
                                                 <div className="flex flex-col sm:flex-row gap-1 sm:gap-6 text-purple-700 text-xs sm:text-sm">
-                                                    
-                                                    {/* Case 1: Auto-Refund (Has Ref ID) */}
                                                     {order.razorpay_refund_id ? (
                                                         <div className="flex gap-1">
                                                             <span className="opacity-70">Ref ID:</span>
                                                             <span className="font-mono font-bold select-all">{order.razorpay_refund_id}</span>
                                                         </div>
                                                     ) : (
-                                                        /* Case 2: Manual Refund (COD or Online Return) */
                                                         <div className="flex gap-1">
                                                             <span className="font-medium italic">
-                                                                {order.payment_method === 'COD' 
-                                                                    ? "Amount refunded to your bank account" 
-                                                                    : "Refund processed manually (Shipping charges deducted)"}
+                                                                {order.payment_method === 'COD' ? "Amount refunded to your bank account" : "Refund processed manually (Shipping deducted)"}
                                                             </span>
                                                         </div>
                                                     )}
-
-                                                    {/* Date */}
                                                     {order.refunded_date && (
                                                         <div className="flex gap-1">
                                                             <span className="opacity-70">Date:</span>
@@ -502,7 +528,7 @@ const UserProfile = () => {
                         </form>
                     ) : (
                         <div className="grid gap-4">
-                            {addresses.map((addr) => (
+                            {addresses.length === 0 ? <p className="text-gray-500 text-center py-4">No addresses saved.</p> : addresses.map((addr) => (
                                 <div key={addr.id} className={`bg-white border p-5 rounded-xl flex justify-between items-center shadow-sm transition-all ${addr.is_default ? 'border-[#1F2B5B] bg-blue-50/10' : 'border-gray-200'}`}>
                                     <div>
                                         <div className="flex items-center gap-2 mb-1">
@@ -537,7 +563,6 @@ const UserProfile = () => {
       <div className="container mx-auto px-4 md:px-8 max-w-6xl">
         <div className="flex flex-col lg:flex-row gap-8">
           <aside className="w-full lg:w-72 bg-white rounded-xl shadow-sm p-6 h-fit border border-gray-100">
-            {/* User Info & Navigation (Same as before) */}
             <div className="flex items-center gap-4 mb-8 pb-6 border-b border-gray-100">
               <div className="w-12 h-12 rounded-full bg-[#1F2B5B] flex items-center justify-center text-white font-bold text-lg flex-shrink-0">
                 {userProfile?.first_name?.[0]}{userProfile?.last_name?.[0] || userProfile?.email?.[0]}

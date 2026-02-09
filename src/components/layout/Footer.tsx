@@ -15,11 +15,12 @@ export default function Footer() {
           {/* --- BRANDING / ABOUT --- */}
           <div>
             <Link to="/" className="flex items-center gap-2 mb-6">
-               <img 
-                 src="/logo.jpeg" 
-                 alt="Stature Vogue" 
-                 className="h-10 w-10 rounded-full object-cover border-2 border-white/10" 
-               />
+<img 
+  src="/logo.png" 
+  alt="Stature Vogue" 
+  className="h-14 w-auto object-contain"
+/>
+
                <span className="text-xl font-bold tracking-tighter text-white uppercase whitespace-nowrap">
                  STATURE VOGUE
                </span>

@@ -96,7 +96,7 @@ export default function Header() {
               absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 
               md:static md:translate-x-0 md:translate-y-0 md:flex-shrink-0 z-10">
                <img 
-                 src="/logo.jpeg" 
+                 src="/logo.png" 
                  alt="Logo" 
                  className="h-10 w-10 md:h-12 md:w-12 rounded-full object-cover" 
                />

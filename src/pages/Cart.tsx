@@ -1,10 +1,22 @@
 import { Link } from "react-router-dom";
 import { Plus, Minus, ShoppingBag, ArrowRight } from "lucide-react";
 import { useCart } from "../context/CartContext";
+import { useNavigate } from "react-router-dom";
+import { toast } from "sonner"; //
 
 export default function Cart() {
   const { cartItems, removeFromCart, updateQuantity, getCartTotal } = useCart();
   const subtotal = getCartTotal();
+  const navigate = useNavigate();
+  const handleCheckout = () => {
+    const token = localStorage.getItem("userToken");
+    if (!token) {
+      toast.error("Please login to proceed to checkout");
+      navigate("/login");
+    } else {
+      navigate("/checkout");
+    }
+  };
 
   if (cartItems.length === 0) {
     return (
@@ -49,9 +61,12 @@ export default function Cart() {
            <p className="text-sm text-gray-500 mb-6">Shipping, taxes, and discounts calculated at checkout.</p>
            
            {/* LINK TO CHECKOUT */}
-           <Link to="/checkout" className="bg-[#1F2B5B] text-white px-10 py-4 rounded-lg font-bold text-lg hover:bg-[#283747] transition shadow-lg">
+           <button 
+             onClick={handleCheckout} 
+             className="bg-[#1F2B5B] text-white px-10 py-4 rounded-lg font-bold text-lg hover:bg-[#283747] transition shadow-lg"
+           >
              Proceed to Checkout
-           </Link>
+           </button>
         </div>
       </div>
     </div>

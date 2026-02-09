@@ -50,6 +50,14 @@ export default function Checkout() {
 
   // --- 1. FETCH DATA & AUTO-FILL ---
   useEffect(() => {
+    
+    // 🔥 NEW: Check Login Status First
+    const token = localStorage.getItem("userToken");
+    if (!token) {
+        toast.error("Please login to complete your purchase");
+        navigate("/login"); 
+        return;
+    }
     const init = async () => {
       try {
         const configData = await storeService.getSiteConfig();
