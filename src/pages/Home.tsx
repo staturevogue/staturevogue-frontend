@@ -140,7 +140,7 @@ export default function Home() {
       {collections.length > 0 && (
         <section className="max-w-7xl mx-auto px-4 py-16">
           <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold text-[#1F2B5B]">Most Popular</h2>
+            <h2 className="text-2xl font-bold text-[#1F2B5B]">Most Popular</h2>
             <p className="text-gray-500 mt-1">Check this out →</p>
           </div>
           <div className="p-4 border-2 border-dashed border-gray-300 rounded-lg">
@@ -166,7 +166,7 @@ export default function Home() {
       {categories.length > 0 && (
         <section className="bg-white py-16">
           <div className="max-w-7xl mx-auto px-4">
-            <h2 className="text-3xl font-bold text-center mb-10 text-[#1F2B5B]">Shop by Category</h2>
+            <h2 className="text-2xl font-bold text-center mb-10 text-[#1F2B5B]">Shop by Category</h2>
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
               {categories.map((cat: any) => (
                 <Link key={cat.id} to={`/products?category=${cat.name}`} className="group block text-center">
@@ -219,7 +219,7 @@ export default function Home() {
       {newArrivals.length > 0 && (
         <section className="max-w-7xl mx-auto px-4 py-16">
           <div className="flex justify-between items-end mb-8">
-            <h2 className="text-3xl font-bold text-[#1F2B5B]">New Arrivals</h2>
+            <h2 className="text-2xl font-bold text-[#1F2B5B]">New Arrivals</h2>
             <Link to="/products?badge=NEW" className="text-[#1F2B5B] font-bold hover:underline flex items-center text-sm">View All <ArrowRight className="w-4 h-4 ml-1"/></Link>
           </div>
           {/* UI KEPT SAME: Grid Layout */}
@@ -233,7 +233,7 @@ export default function Home() {
       {bestSellers.length > 0 && (
         <section className="max-w-7xl mx-auto px-4 py-16 border-t">
           <div className="flex justify-between items-end mb-8">
-            <h2 className="text-3xl font-bold text-[#1F2B5B]">Best Sellers</h2>
+            <h2 className="text-2xl font-bold text-[#1F2B5B]">Best Sellers</h2>
             <Link to="/products?badge=BESTSELLER" className="text-[#1F2B5B] font-bold hover:underline flex items-center text-sm">View All <ArrowRight className="w-4 h-4 ml-1"/></Link>
           </div>
           {/* UI KEPT SAME: Grid Layout */}

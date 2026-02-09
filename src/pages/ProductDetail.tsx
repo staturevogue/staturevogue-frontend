@@ -277,8 +277,7 @@ export default function ProductDetail() {
         </div>
       )}
 
-      <div className="mb-6 md:mb-8">
-  {/* Price row */}
+    <div className="mb-6 md:mb-8">
   <div className="flex items-end gap-3">
     <span className="text-3xl md:text-4xl font-extrabold text-gray-900">
       ₹{displayPrice}
@@ -286,22 +285,18 @@ export default function ProductDetail() {
 
     {showDiscount && (
       <>
-        <span className="text-base md:text-lg text-gray-400 line-through font-medium">
-          ₹{product.originalPrice}
-        </span>
+        
 
         <span className="text-sm font-bold text-green-600">
-          {Math.round((discountAmount / product.originalPrice) * 100)}% OFF
+          ₹{discountAmount} OFF
         </span>
       </>
     )}
   </div>
 
-  {/* MRP + tax line */}
   {showDiscount && (
-    <p className="mt-1 text-xs text-gray-500">
-      MRP:{" "}
-      <span className="line-through">₹{product.originalPrice}</span>{" "}
+    <p className="mt-1 text-s text-gray-600">
+      MRP: <span className="line-through">₹{product.originalPrice}</span>
       <span className="ml-1">Inclusive of all taxes</span>
     </p>
   )}
