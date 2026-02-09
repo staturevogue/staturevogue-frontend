@@ -19,8 +19,9 @@ export default function Checkout() {
   const [paymentMethod, setPaymentMethod] = useState<'Online' | 'COD'>('Online');
   const [saveAsDefault, setSaveAsDefault] = useState(false);
   const [loadingConfig, setLoadingConfig] = useState(true);
+  
   const [config, setConfig] = useState({
-    shipping_flat_rate: 100, // Default to 100 if fetch fails
+    shipping_flat_rate: 100, 
     shipping_free_above: 0,
     tax_rate_percentage: 0,
     cod_extra_fee: 50, 
@@ -31,7 +32,6 @@ export default function Checkout() {
   const [isValidatingCoupon, setIsValidatingCoupon] = useState(false);
   const [isPaying, setIsPaying] = useState(false);
 
-  // Saved Addresses
   const [savedAddresses, setSavedAddresses] = useState<any[]>([]);
   const [selectedAddressId, setSelectedAddressId] = useState<number | string>("new");
 
@@ -50,22 +50,24 @@ export default function Checkout() {
 
   // --- 1. FETCH DATA & AUTO-FILL ---
   useEffect(() => {
-    
-    // 🔥 NEW: Check Login Status First
+    // 🔥 Check Login First
     const token = localStorage.getItem("userToken");
     if (!token) {
         toast.error("Please login to complete your purchase");
         navigate("/login"); 
         return;
     }
+
     const init = async () => {
       try {
         const configData = await storeService.getSiteConfig();
+        
+        // 🔥 FIX: Properly handle '0' values from backend
         setConfig({
-          shipping_flat_rate: parseFloat(configData.shipping_flat_rate) || 100,
+          shipping_flat_rate: configData.shipping_flat_rate !== undefined ? parseFloat(configData.shipping_flat_rate) : 100,
           shipping_free_above: parseFloat(configData.shipping_free_above) || 0,
           tax_rate_percentage: parseFloat(configData.tax_rate_percentage) || 0,
-          cod_extra_fee: parseFloat(configData.cod_extra_fee) || 50,
+          cod_extra_fee: configData.cod_extra_fee !== undefined ? parseFloat(configData.cod_extra_fee) : 50,
         });
         
         try {
@@ -125,10 +127,12 @@ export default function Checkout() {
       }
   };
   
-  // --- 2. CALCULATIONS ---
+  // --- 2. CALCULATIONS (FIXED LOGIC) ---
   const calculations = useMemo(() => {
-    // 🔥 FIX 1: Enforce Fixed Shipping (Removed Free Shipping Logic)
-    const shippingCost = config.shipping_flat_rate; 
+    
+    // 🔥 FIX: Check Free Shipping Limit correctly
+    const isFreeShipping = config.shipping_free_above > 0 && cartTotal >= config.shipping_free_above;
+    const shippingCost = isFreeShipping ? 0 : config.shipping_flat_rate;
     
     let discountAmount = 0;
     if (couponData) {
@@ -138,12 +142,11 @@ export default function Checkout() {
     const taxableAmount = Math.max(0, cartTotal - discountAmount);
     const taxAmount = (taxableAmount * config.tax_rate_percentage) / 100;
     
-    // COD Logic
     const codFee = paymentMethod === 'COD' ? config.cod_extra_fee : 0;
 
     const finalTotal = taxableAmount + taxAmount + shippingCost + codFee;
 
-    return { shippingCost, discountAmount, taxAmount, codFee, finalTotal };
+    return { shippingCost, isFreeShipping, discountAmount, taxAmount, codFee, finalTotal };
   }, [cartTotal, config, couponData, paymentMethod]); 
 
   // --- 3. HANDLERS ---
@@ -180,7 +183,6 @@ export default function Checkout() {
             ...formData,
             zip_code: formData.pinCode,
             payment_method: paymentMethod,
-            // 🔥 FIX 2: Send the 'save_as_default' flag to backend
             save_as_default: saveAsDefault, 
             items: cartItems.map(item => ({
                 product_id: item.productId, 
@@ -193,7 +195,6 @@ export default function Checkout() {
         
         const orderResp = await orderService.createOrder(orderPayload);
 
-        // --- COD FLOW ---
         if (orderResp.payment_method === 'COD') {
             toast.success("Order Placed Successfully!");
             clearCart();
@@ -201,7 +202,6 @@ export default function Checkout() {
             return;
         }
 
-        // --- ONLINE FLOW (Razorpay) ---
         const options = {
             key: orderResp.key,
             amount: orderResp.amount,
@@ -417,8 +417,8 @@ export default function Checkout() {
                 
                 <div className="flex justify-between text-gray-600">
                     <span>Shipping (Standard)</span>
-                    <span className="font-medium text-gray-900">
-                        ₹{calculations.shippingCost}
+                    <span className={calculations.isFreeShipping ? "text-green-600 font-bold" : "font-medium text-gray-900"}>
+                        {calculations.isFreeShipping ? "FREE" : `₹${calculations.shippingCost}`}
                     </span>
                 </div>
 
