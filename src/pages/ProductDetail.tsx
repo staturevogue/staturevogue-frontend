@@ -2,9 +2,8 @@ import { useState, useEffect, useMemo } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom"; 
 import {
   Star, ChevronLeft, ChevronRight, Check, 
-  User, ShoppingBag, Loader2, PenSquare, 
-  Share2, X, Copy, MessageCircle, Twitter,
-  Plus, Minus, ChevronDown
+  ShoppingBag, Loader2, PenSquare, 
+  Share2, X, Copy, Plus, Minus, ChevronDown
 } from "lucide-react";
 import { useCart } from "../context/CartContext";
 import { storeService } from "../services/api"; 
@@ -261,6 +260,56 @@ export default function ProductDetail() {
     </div>
   );
 
+  // 🔥 HELPER: Product Header Component (Title, Rating, Price)
+  // We use this to render it twice (Mobile & Desktop) without duplicating logic
+  const renderProductHeader = () => (
+    <>
+      <h1 className="text-2xl md:text-3xl font-bold text-[#1F2B5B] mb-2 leading-tight">{product.name}</h1>
+      
+      {hasReviews && (
+        <div className="flex items-center gap-2 mb-3 md:mb-6">
+          <div className="flex text-[#F4C430] text-sm">
+            {[...Array(5)].map((_, i) => (
+              <Star key={i} className={`w-4 h-4 ${i < Math.floor(product.rating || 0) ? "fill-current" : "text-gray-300"}`} />
+            ))}
+          </div>
+          <span className="text-sm text-gray-500 font-medium">{reviews.length} Reviews</span>
+        </div>
+      )}
+
+      <div className="mb-6 md:mb-8">
+  {/* Price row */}
+  <div className="flex items-end gap-3">
+    <span className="text-3xl md:text-4xl font-extrabold text-gray-900">
+      ₹{displayPrice}
+    </span>
+
+    {showDiscount && (
+      <>
+        <span className="text-base md:text-lg text-gray-400 line-through font-medium">
+          ₹{product.originalPrice}
+        </span>
+
+        <span className="text-sm font-bold text-green-600">
+          {Math.round((discountAmount / product.originalPrice) * 100)}% OFF
+        </span>
+      </>
+    )}
+  </div>
+
+  {/* MRP + tax line */}
+  {showDiscount && (
+    <p className="mt-1 text-xs text-gray-500">
+      MRP:{" "}
+      <span className="line-through">₹{product.originalPrice}</span>{" "}
+      <span className="ml-1">Inclusive of all taxes</span>
+    </p>
+  )}
+</div>
+
+    </>
+  );
+
   if (loading) return <div className="min-h-screen flex justify-center items-center"><Loader2 className="w-10 h-10 animate-spin text-[#1F2B5B]" /></div>;
   if (!product) return null;
 
@@ -288,7 +337,7 @@ export default function ProductDetail() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-4">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-16">
           
-          {/* --- LEFT: IMAGES --- */}
+          {/* --- LEFT COLUMN: IMAGES & MOBILE HEADER --- */}
           <div className="space-y-4">
             <div className="relative aspect-[4/5] bg-gray-50 rounded-2xl overflow-hidden group border border-gray-100">
               <img
@@ -300,15 +349,24 @@ export default function ProductDetail() {
               <button onClick={handleShare} className="absolute top-4 right-4 bg-white/90 p-2.5 rounded-full shadow-sm hover:bg-[#1F2B5B] hover:text-white transition-all z-20">
                 <Share2 className="w-5 h-5" />
               </button>
+              
 
               {displayImages.length > 1 && (
                 <>
                     <button onClick={prevImage} className="absolute left-4 top-1/2 -translate-y-1/2 bg-white/90 p-2 rounded-full shadow-md hover:scale-110 transition"><ChevronLeft className="w-5 h-5 text-[#1F2B5B]" /></button>
                     <button onClick={nextImage} className="absolute right-4 top-1/2 -translate-y-1/2 bg-white/90 p-2 rounded-full shadow-md hover:scale-110 transition"><ChevronRight className="w-5 h-5 text-[#1F2B5B]" /></button>
                 </>
+                
               )}
+              
             </div>
-            {/* Thumbnails */}
+
+            {/* 🔥 MOBILE ONLY: HEADER DIRECTLY UNDER MAIN IMAGE */}
+            <div className="md:hidden mt-4 mb-6">
+                {renderProductHeader()}
+            </div>
+
+            {/* Thumbnails (Now below the title/price on Mobile) */}
             <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
               {displayImages.map((image: any, index: number) => (
                 <button 
@@ -322,31 +380,11 @@ export default function ProductDetail() {
             </div>
           </div>
 
-          {/* --- RIGHT: PRODUCT INFO --- */}
+          {/* --- RIGHT COLUMN: DETAILS & DESKTOP HEADER --- */}
           <div>
-            <h1 className="text-3xl font-bold text-[#1F2B5B] mb-2 leading-tight">{product.name}</h1>
-            
-            {hasReviews && (
-              <div className="flex items-center gap-2 mb-6">
-                <div className="flex text-[#F4C430] text-sm">
-                  {[...Array(5)].map((_, i) => (
-                    <Star key={i} className={`w-4 h-4 ${i < Math.floor(product.rating || 0) ? "fill-current" : "text-gray-300"}`} />
-                  ))}
-                </div>
-                <span className="text-sm text-gray-500 font-medium">{reviews.length} Reviews</span>
-              </div>
-            )}
-
-            <div className="flex items-center gap-3 mb-8">
-              <span className="text-3xl font-bold text-gray-900">₹{displayPrice}</span>
-              {showDiscount && (
-                  <>
-                    <span className="text-lg text-gray-400 line-through">₹{product.originalPrice}</span>
-                    <span className="bg-red-100 text-red-700 text-xs font-bold px-2 py-1 rounded">
-                        SAVE ₹{discountAmount}
-                    </span>
-                  </>
-              )}
+            {/* 🔥 DESKTOP ONLY: HEADER AT TOP OF COLUMN */}
+            <div className="hidden md:block">
+                {renderProductHeader()}
             </div>
 
             <div className="space-y-6 border-t border-gray-100 pt-6">
@@ -396,23 +434,24 @@ export default function ProductDetail() {
                 </div>
               </div>
 
-              {/* 🔥 REVERTED BUTTON STYLE & QUANTITY SECTION */}
+              {/* Quantity */}
               <div className="mb-4">
                 <h3 className="font-semibold text-xs mb-2">Quantity</h3>
                 <div className="flex items-center space-x-3">
-                  <button onClick={() => setQuantity(Math.max(1, quantity - 1))} className="w-8 h-8 border rounded hover:bg-gray-50 flex items-center justify-center text-sm">-</button>
+                  <button onClick={() => setQuantity(Math.max(1, quantity - 1))} className="w-8 h-8 border rounded hover:bg-gray-50 flex items-center justify-center text-sm"><Minus className="w-3 h-3" /></button>
                   <span className="text-sm font-medium w-8 text-center">{quantity}</span>
-                  <button onClick={() => setQuantity(quantity + 1)} className="w-8 h-8 border rounded hover:bg-gray-50 flex items-center justify-center text-sm">+</button>
+                  <button onClick={() => setQuantity(quantity + 1)} className="w-8 h-8 border rounded hover:bg-gray-50 flex items-center justify-center text-sm"><Plus className="w-3 h-3" /></button>
                 </div>
               </div>
 
+              {/* Buttons */}
               <div className="flex space-x-3 mb-6">
                 <button className="flex-1 border-2 border-[#1F2B5B] bg-white text-[#1F2B5B] py-3 px-4 rounded-lg font-bold text-sm hover:bg-[#1F2B5B] hover:text-white transition-all flex items-center justify-center gap-2" onClick={handleAddToCart}><ShoppingBag className="w-5 h-5" /> ADD TO CART</button>
                 <button className="flex-1 bg-[#1F2B5B] text-white py-3 px-4 rounded-lg font-bold text-sm hover:bg-[#283747] transition-all" onClick={handleBuyNow}>BUY NOW</button>
               </div>
             </div>
 
-            {/* --- DESKTOP TABS (Hidden on Mobile) --- */}
+            {/* --- DESKTOP TABS --- */}
             <div className="hidden md:block mt-16">
                 <div className="flex gap-8 border-b border-gray-200 mb-6">
                     {["description", "features", "care", "reviews"].map(tab => (
@@ -437,7 +476,7 @@ export default function ProductDetail() {
                 </div>
             </div>
 
-            {/* --- MOBILE ACCORDIONS (Hidden on Desktop) --- */}
+            {/* --- MOBILE ACCORDIONS --- */}
             <div className="md:hidden mt-10 space-y-4">
                 {[
                     { id: "description", label: "Description", content: renderDescription() },
@@ -470,7 +509,7 @@ export default function ProductDetail() {
         </div>
       </div>
 
-      {/* Share Modal (Keep existing) */}
+      {/* Share Modal */}
       {isShareModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 animate-in fade-in">
             <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm p-6 relative">
@@ -488,7 +527,7 @@ export default function ProductDetail() {
         </div>
       )}
 
-      {/* Review Modal (Keep existing) */}
+      {/* Review Modal */}
       {isReviewModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
             <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-6 relative animate-in zoom-in-95">
