@@ -35,7 +35,7 @@ export default function Home() {
   
   const [loading, setLoading] = useState(true);
 
-  // --- DEFAULTS (Restored from your earlier code) ---
+  // --- DEFAULTS ---
   const defaultSlides = [
     { image: "/images/hero/slide1.jpg", title: "Own the sky", subtitle: "In style", button_link: "/products", button_text: "SHOP NOW" },
     { image: "/images/hero/slide2.jpg", title: "Travel Essentials", subtitle: "Comfort Redefined", button_link: "/products?collection=casual", button_text: "SHOP NOW" },
@@ -48,7 +48,6 @@ export default function Home() {
     image_2: "/images/products/women-dryfit.jpg"
   };
 
-  // Used if no dynamic features exist
   const defaultFeatures = [
     { title: "On the move", icon: Plane },
     { title: "Travel Friendly", icon: Luggage },
@@ -56,10 +55,9 @@ export default function Home() {
     { title: "Home Grown", icon: Leaf },
   ];
 
-  // Final Data to Render (Backend Data OR Default)
   const finalSlides = heroSlides.length > 0 ? heroSlides : defaultSlides;
   const finalStory = brandStory || defaultStory;
-  const finalFeatures = brandFeatures.length > 0 ? brandFeatures : null; // We handle null differently to render hardcoded icons
+  const finalFeatures = brandFeatures.length > 0 ? brandFeatures : null; 
 
   useEffect(() => {
     const fetchData = async () => {
@@ -84,8 +82,16 @@ export default function Home() {
 
         setCollections(cols.results || cols);
         setCategories(cats.results || cats);
-        setNewArrivals(newProds.results || newProds);
-        setBestSellers(bestProds.results || bestProds);
+
+        // 🔥 FIX 1: Sort New Arrivals Descending (Newest First) & Take Top 10
+        const rawNew = newProds.results || newProds;
+        const sortedNew = [...rawNew].sort((a: any, b: any) => parseInt(b.id) - parseInt(a.id));
+        setNewArrivals(sortedNew.slice(0, 10));
+
+        // 🔥 FIX 2: Sort Best Sellers Descending (Newest First) & Take Top 10
+        const rawBest = bestProds.results || bestProds;
+        const sortedBest = [...rawBest].sort((a: any, b: any) => parseInt(b.id) - parseInt(a.id));
+        setBestSellers(sortedBest.slice(0, 10));
 
       } catch (err) {
         console.error("Failed to load home data", err);
@@ -106,8 +112,6 @@ export default function Home() {
         {finalSlides.map((slide, index) => (
           <div 
             key={index} 
-            // 🔥 CRITICAL FIX: Added 'pointer-events-none' to hidden slides
-            // This prevents the invisible 2nd slide from capturing clicks meant for the 1st slide
             className={`absolute inset-0 transition-opacity duration-700 
                 ${index === currentSlide ? "opacity-100 z-10 pointer-events-auto" : "opacity-0 z-0 pointer-events-none"}`}
           >
@@ -124,7 +128,6 @@ export default function Home() {
           </div>
         ))}
         
-        {/* Navigation Arrows */}
         {finalSlides.length > 1 && (
             <>
                 <button onClick={() => setCurrentSlide((c) => (c - 1 + finalSlides.length) % finalSlides.length)} className="absolute left-4 top-1/2 -translate-y-1/2 p-2 bg-white/30 rounded-full hover:bg-white transition z-20"><ChevronLeft /></button>
@@ -178,7 +181,7 @@ export default function Home() {
         </section>
       )}
 
-      {/* 3. BRAND STORY (Dynamic or Default) */}
+      {/* 3. BRAND STORY */}
       <section className="bg-[#1F2B5B] text-white overflow-hidden">
         <div className="flex flex-col md:flex-row">
         <div className="md:w-1/2 p-12 md:p-20 flex flex-col justify-center">
@@ -187,10 +190,8 @@ export default function Home() {
                 {finalStory.content}
             </p>
             
-            {/* Features: Check if dynamic or use hardcoded icons */}
             <div className="grid grid-cols-4 gap-8 mb-8 border-t border-blue-800 pt-8">
                 {finalFeatures ? (
-                    // Render DYNAMIC Features (Images from Backend)
                     finalFeatures.map((feature: any, i: number) => (
                         <div key={i} className="text-center flex flex-col items-center">
                             <img src={feature.icon_image} alt={feature.title} className="w-6 h-6 mb-2 opacity-80 invert brightness-0 filter" /> 
@@ -198,7 +199,6 @@ export default function Home() {
                         </div>
                     ))
                 ) : (
-                    // Render DEFAULT Features (Lucide Icons)
                     defaultFeatures.map((f, i) => (
                         <div key={i} className="text-center flex flex-col items-center">
                             <f.icon className="w-6 h-6 mx-auto mb-2 opacity-80" />
@@ -209,7 +209,6 @@ export default function Home() {
             </div>
         </div>
         <div className="md:w-1/2 grid grid-cols-2">
-            {/* Show image if available, else placeholder */}
             <img src={finalStory.image_1 || "/placeholder.jpg"} className="w-full h-full object-cover" />
             <img src={finalStory.image_2 || "/placeholder.jpg"} className="w-full h-full object-cover" />
         </div>
@@ -223,6 +222,7 @@ export default function Home() {
             <h2 className="text-3xl font-bold text-[#1F2B5B]">New Arrivals</h2>
             <Link to="/products?badge=NEW" className="text-[#1F2B5B] font-bold hover:underline flex items-center text-sm">View All <ArrowRight className="w-4 h-4 ml-1"/></Link>
           </div>
+          {/* UI KEPT SAME: Grid Layout */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
             {newArrivals.map((product: any) => <ProductCard key={product.id} product={product} />)}
           </div>
@@ -236,6 +236,7 @@ export default function Home() {
             <h2 className="text-3xl font-bold text-[#1F2B5B]">Best Sellers</h2>
             <Link to="/products?badge=BESTSELLER" className="text-[#1F2B5B] font-bold hover:underline flex items-center text-sm">View All <ArrowRight className="w-4 h-4 ml-1"/></Link>
           </div>
+          {/* UI KEPT SAME: Grid Layout */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
             {bestSellers.map((product: any) => <ProductCard key={product.id} product={product} />)}
           </div>

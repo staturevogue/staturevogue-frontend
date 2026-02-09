@@ -22,7 +22,6 @@ export interface Product {
   description?: string;
 }
 
-// 🔥 FIX 1: Add 'breadcrumb' to the props interface so TypeScript accepts it
 interface ProductCardProps {
   product: Product;
   breadcrumb?: { label: string; url: string }; 
@@ -35,19 +34,17 @@ export default function ProductCard({ product, breadcrumb }: ProductCardProps) {
 
   const discountAmount = product.originalPrice - product.price;
 
-  // 🔥 LOGIC: Always pick the FIRST image (Index 0).
-  // This matches the logic in ProductDetail.tsx which selects the color of Image[0].
+  // Always pick the FIRST image (Index 0)
   const mainImage = product.images && product.images.length > 0 
     ? product.images[0].url 
     : "https://placehold.co/400x500?text=No+Image";
 
-  // 🔥 LOGIC: Only show rating if it exists
+  // Only show rating if it exists
   const showRating = product.rating > 0 && product.reviewCount > 0;
 
   return (
     <Link 
       to={`/product/${product.slug}`} 
-      // 🔥 FIX 2: Pass the breadcrumb state here
       state={{ breadcrumb }}
       className="group block relative"
     >
@@ -80,12 +77,15 @@ export default function ProductCard({ product, breadcrumb }: ProductCardProps) {
           {product.name}
         </h3>
         
-        <div className="flex items-center gap-2 mt-1">
+        {/* 🔥 FIX: Added 'flex-wrap' and 'items-baseline' to handle long price strings gracefully */}
+        <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1 mt-1">
           <span className="text-sm font-bold text-gray-900">₹{product.price}</span>
           {discountAmount > 0 && (
             <>
               <span className="text-xs text-gray-400 line-through">₹{product.originalPrice}</span>
-              <span className="text-xs font-bold text-green-600">₹{discountAmount} OFF</span>
+              <span className="text-[10px] sm:text-xs font-bold text-green-600 truncate">
+                ₹{discountAmount} OFF
+              </span>
             </>
           )}
         </div>

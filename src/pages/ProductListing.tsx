@@ -195,7 +195,6 @@ export default function ProductListing() {
     }
   };
 
-  // 🔥 FIX FOR LANDING PAGE: Added 'pt-28 md:pt-36' to push content below fixed header
   if (showCategoryLanding && currentGender) {
     if(loading) return <div className="h-screen flex justify-center items-center"><Loader2 className="animate-spin text-[#1F2B5B]" /></div>
     return (
@@ -234,10 +233,9 @@ export default function ProductListing() {
     );
   }
 
-  // 🔥 FIX FOR LISTING PAGE: Added 'pt-28 md:pt-36' to main container
   return (
-    <div className="min-h-screen bg-white">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-28 pb-24 md:pt-36 md:pb-8"> 
+    <div className="min-h-screen bg-white flex flex-col">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-28 pb-8 md:pt-36 flex-1 w-full"> 
         <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
           <div>
             <h1 className="text-2xl font-bold text-[#1F2B5B] uppercase tracking-wide">
@@ -261,8 +259,8 @@ export default function ProductListing() {
 
         <div className="flex gap-10">
           <aside className="hidden md:block w-64 flex-shrink-0">
-            {/* Added 'top-32' here so filters don't get stuck under header */}
-            <div className="space-y-8 sticky top-32">
+            {/* 🔥 FIXED: Desktop Sidebar z-index lowered to 30 to avoid overlap */}
+            <div className="space-y-8 sticky top-32 z-30">
               
               {showGenderFilter && (
                 <div>
@@ -344,7 +342,10 @@ export default function ProductListing() {
         </div>
       </div>
 
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-40 md:hidden shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]">
+      {/* 🔥 FIXED: Lowered z-index from 40 to 30.
+          Now this bar will slide BEHIND the header (z-50) if they overlap. 
+      */}
+      <div className="sticky bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-30 md:hidden shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]">
         <div className="flex h-14 divide-x divide-gray-200">
           <div className="flex-1 relative flex items-center justify-center">
             <ArrowUpDown className="w-4 h-4 text-gray-600 mr-2" />
