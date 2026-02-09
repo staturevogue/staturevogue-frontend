@@ -143,7 +143,7 @@ export default function ProductDetail() {
         setIsShareModalOpen(true);
     }
   };
-
+//submit
   const handleSubmitReview = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newReviewName.trim()) { toast.error("Please enter your name"); return; }
