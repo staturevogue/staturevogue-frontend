@@ -1,4 +1,4 @@
-import React from 'react';
+
 import { RefreshCw, Truck, CreditCard, AlertCircle } from 'lucide-react';
 
 export default function Returns() {

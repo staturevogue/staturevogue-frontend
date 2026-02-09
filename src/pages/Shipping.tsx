@@ -1,4 +1,4 @@
-import React from 'react';
+
 import { Truck, Clock, MapPin, PackageCheck } from 'lucide-react';
 
 export default function Shipping() {

@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom"; 
 import {
   Star, ChevronLeft, ChevronRight, Check, 
-  Truck, RotateCcw, Shield, User, ShoppingBag, Loader2, PenSquare, 
+  User, ShoppingBag, Loader2, PenSquare, 
   Share2, X, Copy, MessageCircle, Twitter
 } from "lucide-react";
 import { useCart } from "../context/CartContext";
