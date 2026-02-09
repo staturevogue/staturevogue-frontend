@@ -276,10 +276,9 @@ export default function ProductDetail() {
           <span className="text-sm text-gray-500 font-medium">{reviews.length} Reviews</span>
         </div>
       )}
-
     <div className="mb-6 md:mb-8">
   <div className="flex items-end gap-3">
-    <span className="text-3xl md:text-4xl font-extrabold text-gray-900">
+    <span className="text-2xl md:text-3xl font-extrabold text-gray-900">
       ₹{displayPrice}
     </span>
 
@@ -295,7 +294,7 @@ export default function ProductDetail() {
   </div>
 
   {showDiscount && (
-    <p className="mt-1 text-s text-gray-600">
+    <p className="mt-1 text-xs text-gray-500">
       MRP: <span className="line-through">₹{product.originalPrice}</span>
       <span className="ml-1">Inclusive of all taxes</span>
     </p>
@@ -325,7 +324,7 @@ export default function ProductDetail() {
           <ChevronRight className="w-3 h-3 mx-1" />
           <span className="cursor-pointer hover:text-[#1F2B5B] capitalize" onClick={() => navigate(breadcrumbLink)}>{breadcrumbLabel}</span>
           <ChevronRight className="w-3 h-3 mx-1" />
-          <span className="font-medium text-gray-900 truncate max-w-[150px] sm:max-w-none">{product.name}</span>
+          <span className="font-small text-gray-900 truncate max-w-[150px] sm:max-w-none">{product.name}</span>
         </div>
       </div>
 
@@ -391,7 +390,7 @@ export default function ProductDetail() {
                     <button
                       key={color.name}
                       onClick={() => { setSelectedColor(color.name); setCurrentImage(0); }}
-                      className={`group relative w-12 h-12 rounded-full overflow-hidden border-2 transition-all ${selectedColor === color.name ? "border-[#1F2B5B] ring-2 ring-offset-2 ring-[#1F2B5B]" : "border-gray-200 hover:border-gray-400"}`}
+                      className={`group relative w-12 h-12 rounded-full overflow-hidden border-2 transition-all ${selectedColor === color.name ? "ring-[#1F2B5B]" : "border-gray-200 hover:border-gray-400"}`}
                     >
                       <img src={getImageForColor(color.name)} className="w-full h-full object-cover opacity-90 group-hover:opacity-100" />
                     </button>
