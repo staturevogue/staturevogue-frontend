@@ -16,9 +16,9 @@ export default function Footer() {
           <div>
             <Link to="/" className="flex items-center gap-2 mb-6">
 <img 
-  src="/logo.png" 
+  src="/logo2.png" 
   alt="Stature Vogue" 
-  className="h-14 w-auto object-contain"
+  className="h-10 w-auto object-contain"
 />
 
                <span className="text-xl font-bold tracking-tighter text-white uppercase whitespace-nowrap">
