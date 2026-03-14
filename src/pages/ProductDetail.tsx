@@ -37,6 +37,9 @@ export default function ProductDetail() {
   const [newReviewName, setNewReviewName] = useState(""); 
   const [isSubmittingReview, setIsSubmittingReview] = useState(false);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+  
+  // 🔥 NEW STATE FOR IMAGE ZOOM
+  const [isImageZoomed, setIsImageZoomed] = useState(false);
 
   useEffect(() => {
     const init = async () => {
@@ -143,7 +146,7 @@ export default function ProductDetail() {
         setIsShareModalOpen(true);
     }
   };
-//submit
+
   const handleSubmitReview = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newReviewName.trim()) { toast.error("Please enter your name"); return; }
@@ -261,7 +264,6 @@ export default function ProductDetail() {
   );
 
   // 🔥 HELPER: Product Header Component (Title, Rating, Price)
-  // We use this to render it twice (Mobile & Desktop) without duplicating logic
   const renderProductHeader = () => (
     <>
       <h1 className="text-2xl md:text-3xl font-bold text-[#1F2B5B] mb-2 leading-tight">{product.name}</h1>
@@ -284,8 +286,6 @@ export default function ProductDetail() {
 
     {showDiscount && (
       <>
-        
-
         <span className="text-sm font-bold text-green-600">
           ₹{discountAmount} OFF
         </span>
@@ -334,33 +334,33 @@ export default function ProductDetail() {
           {/* --- LEFT COLUMN: IMAGES & MOBILE HEADER --- */}
           <div className="space-y-4">
             <div className="relative aspect-[4/5] bg-gray-50 rounded-2xl overflow-hidden group border border-gray-100">
+              {/* MAIN IMAGE TRIGGER */}
               <img
                 src={displayImages[currentImage]?.url || "https://placehold.co/600x800?text=No+Image"}
                 alt={product.name}
-                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105 cursor-pointer"
+                onClick={() => setIsImageZoomed(true)}
               />
               
               <button onClick={handleShare} className="absolute top-4 right-4 bg-white/90 p-2.5 rounded-full shadow-sm hover:bg-[#1F2B5B] hover:text-white transition-all z-20">
                 <Share2 className="w-5 h-5" />
               </button>
-              
 
               {displayImages.length > 1 && (
                 <>
                     <button onClick={prevImage} className="absolute left-4 top-1/2 -translate-y-1/2 bg-white/90 p-2 rounded-full shadow-md hover:scale-110 transition"><ChevronLeft className="w-5 h-5 text-[#1F2B5B]" /></button>
                     <button onClick={nextImage} className="absolute right-4 top-1/2 -translate-y-1/2 bg-white/90 p-2 rounded-full shadow-md hover:scale-110 transition"><ChevronRight className="w-5 h-5 text-[#1F2B5B]" /></button>
                 </>
-                
               )}
               
             </div>
 
-            {/* 🔥 MOBILE ONLY: HEADER DIRECTLY UNDER MAIN IMAGE */}
+            {/* MOBILE ONLY: HEADER DIRECTLY UNDER MAIN IMAGE */}
             <div className="md:hidden mt-4 mb-6">
                 {renderProductHeader()}
             </div>
 
-            {/* Thumbnails (Now below the title/price on Mobile) */}
+            {/* Thumbnails */}
             <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
               {displayImages.map((image: any, index: number) => (
                 <button 
@@ -376,7 +376,7 @@ export default function ProductDetail() {
 
           {/* --- RIGHT COLUMN: DETAILS & DESKTOP HEADER --- */}
           <div>
-            {/* 🔥 DESKTOP ONLY: HEADER AT TOP OF COLUMN */}
+            {/* DESKTOP ONLY: HEADER AT TOP OF COLUMN */}
             <div className="hidden md:block">
                 {renderProductHeader()}
             </div>
@@ -385,12 +385,12 @@ export default function ProductDetail() {
               {/* Color Selector */}
               <div>
                 <span className="text-sm font-bold text-gray-900">Color: <span className="font-normal text-gray-600">{selectedColor}</span></span>
-                <div className="flex gap-3 mt-3">
+                <div className="flex flex-wrap gap-3 mt-3">
                   {product.colors?.map((color: any) => (
                     <button
                       key={color.name}
                       onClick={() => { setSelectedColor(color.name); setCurrentImage(0); }}
-                      className={`group relative w-12 h-12 rounded-full overflow-hidden border-2 transition-all ${selectedColor === color.name ? "ring-[#1F2B5B]" : "border-gray-200 hover:border-gray-400"}`}
+                      className={`group relative flex-shrink-0 w-12 h-12 rounded-full overflow-hidden border-2 transition-all ${selectedColor === color.name ? "ring-[#1F2B5B]" : "border-gray-200 hover:border-gray-400"}`}
                     >
                       <img src={getImageForColor(color.name)} className="w-full h-full object-cover opacity-90 group-hover:opacity-100" />
                     </button>
@@ -547,6 +547,48 @@ export default function ProductDetail() {
                     <button type="submit" disabled={isSubmittingReview} className="w-full bg-[#1F2B5B] text-white py-3 rounded-lg font-bold text-sm hover:bg-[#283747] disabled:bg-gray-400">{isSubmittingReview ? "SUBMITTING..." : "SUBMIT REVIEW"}</button>
                 </form>
             </div>
+        </div>
+      )}
+
+      {/* 🔥 NEW FULL-SCREEN IMAGE ZOOM MODAL (REVERTED TO NATIVE BROWSER ZOOM SUPPORT) */}
+      {isImageZoomed && (
+        <div 
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/95 p-4 animate-in fade-in"
+          onClick={() => setIsImageZoomed(false)}
+        >
+          <button 
+            onClick={() => setIsImageZoomed(false)} 
+            className="absolute top-4 right-4 text-white/70 hover:text-white p-2 z-50 transition-colors"
+          >
+            <X className="w-8 h-8" />
+          </button>
+
+          {/* Standard container allowing native pinch-zoom to function normally */}
+          <div className="relative w-full h-full flex items-center justify-center overflow-auto touch-pinch-zoom">
+            <img
+              src={displayImages[currentImage]?.url || "https://placehold.co/600x800?text=No+Image"}
+              alt={product.name}
+              className="max-w-full max-h-none md:max-h-[90vh] object-contain"
+              onClick={(e) => e.stopPropagation()} 
+            />
+          </div>
+
+          {displayImages.length > 1 && (
+            <>
+              <button 
+                onClick={(e) => { e.stopPropagation(); prevImage(); }} 
+                className="absolute left-4 top-1/2 -translate-y-1/2 text-white/70 hover:text-white p-2 z-50 transition-colors"
+              >
+                <ChevronLeft className="w-12 h-12" />
+              </button>
+              <button 
+                onClick={(e) => { e.stopPropagation(); nextImage(); }} 
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-white/70 hover:text-white p-2 z-50 transition-colors"
+              >
+                <ChevronRight className="w-12 h-12" />
+              </button>
+            </>
+          )}
         </div>
       )}
     </div>
