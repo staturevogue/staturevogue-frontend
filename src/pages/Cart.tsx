@@ -2,12 +2,13 @@ import { Link } from "react-router-dom";
 import { Plus, Minus, ShoppingBag, ArrowRight } from "lucide-react";
 import { useCart } from "../context/CartContext";
 import { useNavigate } from "react-router-dom";
-import { toast } from "sonner"; //
+import { toast } from "sonner"; 
 
 export default function Cart() {
   const { cartItems, removeFromCart, updateQuantity, getCartTotal } = useCart();
   const subtotal = getCartTotal();
   const navigate = useNavigate();
+  
   const handleCheckout = () => {
     const token = localStorage.getItem("userToken");
     if (!token) {
@@ -46,7 +47,21 @@ export default function Cart() {
                    <div className="flex items-center bg-gray-100 rounded-lg">
                       <button onClick={() => updateQuantity(item.id, Math.max(1, item.quantity - 1))} className="p-2 text-gray-600"><Minus className="w-4 h-4"/></button>
                       <span className="px-2 font-medium">{item.quantity}</span>
-                      <button onClick={() => updateQuantity(item.id, item.quantity + 1)} className="p-2 text-gray-600"><Plus className="w-4 h-4"/></button>
+                      
+                      {/* 🔥 FIXED PLUS BUTTON */}
+                      <button 
+                        onClick={() => {
+                            if (item.quantity >= item.stock) {
+                                toast.error(`Only ${item.stock} items available in stock!`);
+                            } else {
+                                updateQuantity(item.id, item.quantity + 1);
+                            }
+                        }} 
+                        className="p-2 text-gray-600"
+                      >
+                          <Plus className="w-4 h-4"/>
+                      </button>
+
                    </div>
                    <button onClick={() => removeFromCart(item.id)} className="text-red-500 text-sm hover:underline">Remove</button>
                 </div>

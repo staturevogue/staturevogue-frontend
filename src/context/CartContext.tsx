@@ -11,18 +11,18 @@ export interface CartItem {
   color: string;
   size: string;
   quantity: number;
+  stock: number; // 🔥 ADDED: The cart now officially tracks maximum stock
 }
 
 interface CartContextType {
   cartItems: CartItem[];
-  addToCart: (item: Omit<CartItem, "id">) => void;
+  addToCart: (item: CartItem) => void; // 🔥 FIX: Removed Omit "id" so we can pass the exact ID
   removeFromCart: (id: string) => void;
   updateQuantity: (id: string, quantity: number) => void;
   clearCart: () => void;
   getCartTotal: () => number;
   getCartCount: () => number;
-  removePurchasedItems: (ids: string[]) => void; // <--- ADD THIS
-  
+  removePurchasedItems: (ids: string[]) => void;
 }
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
@@ -37,28 +37,32 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     localStorage.setItem("cart", JSON.stringify(cartItems));
   }, [cartItems]);
 
-  const addToCart = (item: Omit<CartItem, "id">) => {
+  const addToCart = (item: CartItem) => {
     setCartItems((prev) => {
-      const existing = prev.find(
-        (i) =>
-          i.productId === item.productId &&
-          i.color === item.color &&
-          i.size === item.size
-      );
+      // Find the exact item using the ID we passed from ProductDetail
+      const existing = prev.find((i) => i.id === item.id);
 
       if (existing) {
+        // 🔥 STRICT STOCK CHECK: Block if existing + new exceeds stock
+        if (existing.quantity + item.quantity > item.stock) {
+          toast.error(`Cannot add more. Only ${item.stock} items in stock.`, { id: "stock-error" });
+          return prev; // Abort the update completely
+        }
+
         toast.success("Updated cart quantity!", { id: "cart-update" });
         return prev.map((i) =>
-          i.productId === item.productId &&
-          i.color === item.color &&
-          i.size === item.size
-            ? { ...i, quantity: i.quantity + item.quantity }
-            : i
+          i.id === item.id ? { ...i, quantity: i.quantity + item.quantity } : i
         );
       }
-      toast.success("Added to cart!", { id: "cart-update" });
-      return [...prev, { ...item, id: Date.now().toString() }];
-      return [...prev, { ...item, id: Date.now().toString() }];
+
+      // 🔥 STRICT STOCK CHECK FOR BRAND NEW ITEMS
+      if (item.quantity > item.stock) {
+         toast.error(`Only ${item.stock} items available.`, { id: "stock-error" });
+         return prev; // Abort addition completely
+      }
+
+      toast.success("Added to cart!", { id: "cart-add" });
+      return [...prev, item]; // Add the new item with its proper ID
     });
   };
 
@@ -70,7 +74,17 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const updateQuantity = (id: string, quantity: number) => {
     if (quantity < 1) return;
     setCartItems((prev) =>
-      prev.map((item) => (item.id === id ? { ...item, quantity } : item))
+      prev.map((item) => {
+        if (item.id === id) {
+          // 🔥 STRICT CHECK: Stop the Plus (+) button on the Cart Page from exceeding stock
+          if (quantity > item.stock) {
+            toast.error(`Only ${item.stock} items available in stock.`, { id: "stock-limit" });
+            return item; // Return without updating quantity
+          }
+          return { ...item, quantity };
+        }
+        return item;
+      })
     );
   };
 

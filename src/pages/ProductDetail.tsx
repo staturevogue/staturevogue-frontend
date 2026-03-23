@@ -13,7 +13,9 @@ export default function ProductDetail() {
   const { id: slug } = useParams();
   const navigate = useNavigate();
   const location = useLocation(); 
-  const { addToCart } = useCart();
+  
+  // 🔥 FIX: Pull in cartItems to check what's already in the basket
+  const { addToCart, cartItems: currentCartItems } = useCart();
   
   const [product, setProduct] = useState<any>(null);
   const [reviews, setReviews] = useState<any[]>([]);
@@ -38,7 +40,7 @@ export default function ProductDetail() {
   const [isSubmittingReview, setIsSubmittingReview] = useState(false);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   
-  // 🔥 NEW STATE FOR IMAGE ZOOM
+  // IMAGE ZOOM
   const [isImageZoomed, setIsImageZoomed] = useState(false);
 
   useEffect(() => {
@@ -91,6 +93,7 @@ export default function ProductDetail() {
 
   useEffect(() => { 
       setSelectedSize(""); 
+      setQuantity(1); // Reset quantity when color changes
       if (product) setDisplayPrice(Number(product.price)); 
   }, [selectedColor]);
 
@@ -111,8 +114,11 @@ export default function ProductDetail() {
   const handleAddToCart = (e?: React.MouseEvent) => {
     if (e) { e.preventDefault(); e.stopPropagation(); }
     if (!selectedSize) { toast.error("Please select a size", { id: "size-error" }); return; }
+    
     const sizeObj = availableSizes.find((s: any) => s.size === selectedSize);
-    if (sizeObj && sizeObj.stock <= 0) { toast.error("This size is out of stock", { id: "stock-error" }); return; }
+    if (!sizeObj) return;
+    
+    if (sizeObj.stock <= 0) { toast.error("This size is out of stock", { id: "stock-error" }); return; }
 
     const cartItem = {
       id: `${product.id}-${selectedColor}-${selectedSize}`,
@@ -123,13 +129,30 @@ export default function ProductDetail() {
       image: displayImages[0]?.url,
       color: selectedColor,
       size: selectedSize,
-      quantity
+      quantity,
+      stock: Number(sizeObj.stock) // 🔥 FIX: Officially pass the stock to the CartContext
     };
+    
+    // We removed toast.success here because CartContext will handle showing the success or error
     addToCart(cartItem);
   };
 
   const handleBuyNow = () => {
     if (!selectedSize) { toast.error("Please select a size"); return; }
+    
+    const sizeObj = availableSizes.find((s: any) => s.size === selectedSize);
+    if (!sizeObj) return;
+
+    // Check before redirecting
+    const variantId = `${product.id}-${selectedColor}-${selectedSize}`;
+    const existingItemInCart = currentCartItems.find((item: any) => item.id === variantId);
+    const existingQuantity = existingItemInCart ? Number(existingItemInCart.quantity) : 0;
+    
+    if (quantity + existingQuantity > Number(sizeObj.stock)) {
+       toast.error(`Limit reached. Only ${sizeObj.stock} available.`);
+       return;
+    }
+
     handleAddToCart(); 
     navigate('/cart'); 
   };
@@ -434,7 +457,32 @@ export default function ProductDetail() {
                 <div className="flex items-center space-x-3">
                   <button onClick={() => setQuantity(Math.max(1, quantity - 1))} className="w-8 h-8 border rounded hover:bg-gray-50 flex items-center justify-center text-sm"><Minus className="w-3 h-3" /></button>
                   <span className="text-sm font-medium w-8 text-center">{quantity}</span>
-                  <button onClick={() => setQuantity(quantity + 1)} className="w-8 h-8 border rounded hover:bg-gray-50 flex items-center justify-center text-sm"><Plus className="w-3 h-3" /></button>
+                  
+                  {/* 🔥 FIX: Ensure Plus Button prevents going over stock limits */}
+                  <button 
+                    onClick={() => {
+                      if (!selectedSize) {
+                        toast.error("Please select a size first");
+                        return;
+                      }
+                      const sizeObj = availableSizes.find((s: any) => s.size === selectedSize);
+                      if (sizeObj) {
+                        const maxStock = Number(sizeObj.stock);
+                        const variantId = `${product.id}-${selectedColor}-${selectedSize}`;
+                        const existingItemInCart = currentCartItems.find((item: any) => item.id === variantId);
+                        const existingQuantity = existingItemInCart ? Number(existingItemInCart.quantity) : 0;
+                        
+                        if (quantity + existingQuantity >= maxStock) {
+                          toast.error(`Limit reached. Only ${maxStock} in stock.`);
+                          return;
+                        }
+                      }
+                      setQuantity(quantity + 1);
+                    }} 
+                    className="w-8 h-8 border rounded hover:bg-gray-50 flex items-center justify-center text-sm"
+                  >
+                    <Plus className="w-3 h-3" />
+                  </button>
                 </div>
               </div>
 
@@ -550,7 +598,7 @@ export default function ProductDetail() {
         </div>
       )}
 
-      {/* 🔥 NEW FULL-SCREEN IMAGE ZOOM MODAL (REVERTED TO NATIVE BROWSER ZOOM SUPPORT) */}
+      {/* FULL-SCREEN IMAGE ZOOM MODAL (NATIVE BROWSER ZOOM SUPPORT) */}
       {isImageZoomed && (
         <div 
           className="fixed inset-0 z-[100] flex items-center justify-center bg-black/95 p-4 animate-in fade-in"
