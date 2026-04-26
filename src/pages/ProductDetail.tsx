@@ -14,7 +14,6 @@ export default function ProductDetail() {
   const navigate = useNavigate();
   const location = useLocation(); 
   
-  // 🔥 FIX: Pull in cartItems to check what's already in the basket
   const { addToCart, cartItems: currentCartItems } = useCart();
   
   const [product, setProduct] = useState<any>(null);
@@ -28,11 +27,9 @@ export default function ProductDetail() {
   const [quantity, setQuantity] = useState(1);
   const [currentImage, setCurrentImage] = useState(0);
   
-  // UI States
-  const [activeTab, setActiveTab] = useState("description"); // Desktop
-  const [openAccordion, setOpenAccordion] = useState<string | null>("description"); // Mobile
+  const [activeTab, setActiveTab] = useState("description"); 
+  const [openAccordion, setOpenAccordion] = useState<string | null>("description"); 
 
-  // Review & Share States
   const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
   const [newReviewRating, setNewReviewRating] = useState(5);
   const [newReviewComment, setNewReviewComment] = useState("");
@@ -40,8 +37,8 @@ export default function ProductDetail() {
   const [isSubmittingReview, setIsSubmittingReview] = useState(false);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   
-  // IMAGE ZOOM
   const [isImageZoomed, setIsImageZoomed] = useState(false);
+  const [isSizeGuideOpen, setIsSizeGuideOpen] = useState(false);
 
   useEffect(() => {
     const init = async () => {
@@ -56,7 +53,9 @@ export default function ProductDetail() {
         const reviewsData = await storeService.getReviews(slug as string);
         setReviews(reviewsData.results || reviewsData);
 
-        if (productData.colors?.length > 0) {
+        if (productData.images?.length > 0 && productData.images[0].color) {
+          setSelectedColor(productData.images[0].color);
+        } else if (productData.colors?.length > 0) {
           setSelectedColor(productData.colors[0].name);
         }
       } catch (error) {
@@ -93,7 +92,7 @@ export default function ProductDetail() {
 
   useEffect(() => { 
       setSelectedSize(""); 
-      setQuantity(1); // Reset quantity when color changes
+      setQuantity(1); 
       if (product) setDisplayPrice(Number(product.price)); 
   }, [selectedColor]);
 
@@ -130,10 +129,9 @@ export default function ProductDetail() {
       color: selectedColor,
       size: selectedSize,
       quantity,
-      stock: Number(sizeObj.stock) // 🔥 FIX: Officially pass the stock to the CartContext
+      stock: Number(sizeObj.stock) 
     };
     
-    // We removed toast.success here because CartContext will handle showing the success or error
     addToCart(cartItem);
   };
 
@@ -143,7 +141,6 @@ export default function ProductDetail() {
     const sizeObj = availableSizes.find((s: any) => s.size === selectedSize);
     if (!sizeObj) return;
 
-    // Check before redirecting
     const variantId = `${product.id}-${selectedColor}-${selectedSize}`;
     const existingItemInCart = currentCartItems.find((item: any) => item.id === variantId);
     const existingQuantity = existingItemInCart ? Number(existingItemInCart.quantity) : 0;
@@ -286,7 +283,6 @@ export default function ProductDetail() {
     </div>
   );
 
-  // 🔥 HELPER: Product Header Component (Title, Rating, Price)
   const renderProductHeader = () => (
     <>
       <h1 className="text-2xl md:text-3xl font-bold text-[#1F2B5B] mb-2 leading-tight">{product.name}</h1>
@@ -357,7 +353,6 @@ export default function ProductDetail() {
           {/* --- LEFT COLUMN: IMAGES & MOBILE HEADER --- */}
           <div className="space-y-4">
             <div className="relative aspect-[4/5] bg-gray-50 rounded-2xl overflow-hidden group border border-gray-100">
-              {/* MAIN IMAGE TRIGGER */}
               <img
                 src={displayImages[currentImage]?.url || "https://placehold.co/600x800?text=No+Image"}
                 alt={product.name}
@@ -375,15 +370,12 @@ export default function ProductDetail() {
                     <button onClick={nextImage} className="absolute right-4 top-1/2 -translate-y-1/2 bg-white/90 p-2 rounded-full shadow-md hover:scale-110 transition"><ChevronRight className="w-5 h-5 text-[#1F2B5B]" /></button>
                 </>
               )}
-              
             </div>
 
-            {/* MOBILE ONLY: HEADER DIRECTLY UNDER MAIN IMAGE */}
             <div className="md:hidden mt-4 mb-6">
                 {renderProductHeader()}
             </div>
 
-            {/* Thumbnails */}
             <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
               {displayImages.map((image: any, index: number) => (
                 <button 
@@ -399,7 +391,6 @@ export default function ProductDetail() {
 
           {/* --- RIGHT COLUMN: DETAILS & DESKTOP HEADER --- */}
           <div>
-            {/* DESKTOP ONLY: HEADER AT TOP OF COLUMN */}
             <div className="hidden md:block">
                 {renderProductHeader()}
             </div>
@@ -425,7 +416,16 @@ export default function ProductDetail() {
               <div>
                 <div className="flex justify-between items-center mb-3">
                     <span className="text-sm font-bold text-gray-900">Size: <span className="font-normal text-gray-600">{selectedSize || "Select a size"}</span></span>
-                    <button className="text-xs text-[#1F2B5B] underline decoration-dotted">Size Guide</button>
+                    
+                    {/* 🔥 FIX: Only show Size Guide button if sizeGuide actually exists in data */}
+                    {product?.sizeGuide && (
+                      <button 
+                        onClick={() => setIsSizeGuideOpen(true)}
+                        className="text-xs text-[#1F2B5B] underline decoration-dotted hover:text-blue-700 transition"
+                      >
+                        Size Guide
+                      </button>
+                    )}
                 </div>
                 <div className="flex flex-wrap gap-3">
                   {availableSizes.length > 0 ? availableSizes.map((sizeOption: any) => {
@@ -458,7 +458,6 @@ export default function ProductDetail() {
                   <button onClick={() => setQuantity(Math.max(1, quantity - 1))} className="w-8 h-8 border rounded hover:bg-gray-50 flex items-center justify-center text-sm"><Minus className="w-3 h-3" /></button>
                   <span className="text-sm font-medium w-8 text-center">{quantity}</span>
                   
-                  {/* 🔥 FIX: Ensure Plus Button prevents going over stock limits */}
                   <button 
                     onClick={() => {
                       if (!selectedSize) {
@@ -598,7 +597,7 @@ export default function ProductDetail() {
         </div>
       )}
 
-      {/* FULL-SCREEN IMAGE ZOOM MODAL (NATIVE BROWSER ZOOM SUPPORT) */}
+      {/* FULL-SCREEN IMAGE ZOOM MODAL */}
       {isImageZoomed && (
         <div 
           className="fixed inset-0 z-[100] flex items-center justify-center bg-black/95 p-4 animate-in fade-in"
@@ -611,7 +610,6 @@ export default function ProductDetail() {
             <X className="w-8 h-8" />
           </button>
 
-          {/* Standard container allowing native pinch-zoom to function normally */}
           <div className="relative w-full h-full flex items-center justify-center overflow-auto touch-pinch-zoom">
             <img
               src={displayImages[currentImage]?.url || "https://placehold.co/600x800?text=No+Image"}
@@ -639,6 +637,36 @@ export default function ProductDetail() {
           )}
         </div>
       )}
+
+      {/* SIZE GUIDE MODAL */}
+      {isSizeGuideOpen && product?.sizeGuide && (
+        <div 
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4 animate-in fade-in"
+          onClick={() => setIsSizeGuideOpen(false)}
+        >
+          <div 
+            className="bg-white rounded-xl shadow-2xl overflow-hidden max-w-2xl w-full max-h-[90vh] flex flex-col relative animate-in zoom-in-95"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex justify-between items-center p-4 border-b">
+              <h3 className="font-bold text-[#1F2B5B] text-lg">Size Guide</h3>
+              <button onClick={() => setIsSizeGuideOpen(false)} className="text-gray-400 hover:text-gray-800">
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+            
+            <div className="p-4 overflow-auto touch-pinch-zoom bg-gray-50 flex items-center justify-center">
+              <img 
+                src={product.sizeGuide} 
+                alt="Size Guide" 
+                className="max-w-full h-auto rounded-md shadow-sm"
+              />
+            </div>
+            
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

@@ -50,7 +50,6 @@ export default function Checkout() {
 
   // --- 1. FETCH DATA & AUTO-FILL ---
   useEffect(() => {
-    // 🔥 Check Login First
     const token = localStorage.getItem("userToken");
     if (!token) {
         toast.error("Please login to complete your purchase");
@@ -62,7 +61,6 @@ export default function Checkout() {
       try {
         const configData = await storeService.getSiteConfig();
         
-        // 🔥 FIX: Properly handle '0' values from backend
         setConfig({
           shipping_flat_rate: configData.shipping_flat_rate !== undefined ? parseFloat(configData.shipping_flat_rate) : 100,
           shipping_free_above: parseFloat(configData.shipping_free_above) || 0,
@@ -127,10 +125,8 @@ export default function Checkout() {
       }
   };
   
-  // --- 2. CALCULATIONS (FIXED LOGIC) ---
+  // --- 2. CALCULATIONS ---
   const calculations = useMemo(() => {
-    
-    // 🔥 FIX: Check Free Shipping Limit correctly
     const isFreeShipping = config.shipping_free_above > 0 && cartTotal >= config.shipping_free_above;
     const shippingCost = isFreeShipping ? 0 : config.shipping_flat_rate;
     
@@ -165,7 +161,9 @@ export default function Checkout() {
       }
     } catch (err: any) {
       setCouponData(null);
-      toast.error(err.response?.data?.error || "Invalid coupon");
+      // 🔥 FIX: Because of api.ts interceptor, err IS the data object! 
+      // Now it will correctly show the "Minimum order value" backend error.
+      toast.error(err.error || "Invalid coupon");
     } finally {
       setIsValidatingCoupon(false);
     }
@@ -184,6 +182,7 @@ export default function Checkout() {
             zip_code: formData.pinCode,
             payment_method: paymentMethod,
             save_as_default: saveAsDefault, 
+            coupon_code: couponData ? discountCode : "",
             items: cartItems.map(item => ({
                 product_id: item.productId, 
                 quantity: item.quantity,
@@ -241,9 +240,10 @@ export default function Checkout() {
         const rzp = new window.Razorpay(options);
         rzp.open();
 
-    } catch (error) {
+    } catch (error: any) {
         console.error(error);
-        toast.error("Order placement failed.");
+        // 🔥 FIX: Now shows the actual backend error if order creation fails (e.g. "Out of stock")
+        toast.error(error.error || "Order placement failed.");
     } finally {
         setIsPaying(false);
     }
@@ -358,7 +358,6 @@ export default function Checkout() {
                             <span className="flex items-center gap-2 font-medium text-gray-700">
                                 <Wallet className="w-4 h-4 text-gray-500" /> Cash on Delivery (COD)
                             </span>
-                            {/* 🔥 Show Fee Notice */}
                             {config.cod_extra_fee > 0 && (
                                 <p className="text-xs text-orange-600 font-medium mt-1">+ ₹{config.cod_extra_fee} handling fee</p>
                             )}
